@@ -1,5 +1,6 @@
 
-***This project is under development and not yet ready for release!***
+> [!Note]
+> ***This project is under development and not yet ready for release!***
 
 # SimInvent FFB Yoke
 A Force Feedback Yoke based on 775 DC motors and an Arduino (SparkFun) Micro Pro microprocessor. 
@@ -15,8 +16,8 @@ All build guides and documentation for the 3D printed parts, electronics and sof
 # Design and features
  
 ![Yoke with casing](Images/CAD/Yoke%20with%20casing.jpg)  
-![Yoke](Images/Cad/Yoke%20assembly-front.jpg)
-![Yoke](Images/Cad/Yoke%20assembly-back.jpg)
+![Yoke front](Images/CAD/Yoke%20assembly-front.jpg)
+![Yoke backside](Images/CAD/Yoke%20assembly-back.jpg)
 
 
 * Magnetic AS5600 encoders featuring 12 bit accuracy
@@ -46,7 +47,7 @@ No 3D printed parts are the same from the Gagagu/jwryan4 project. Every part has
 The firmware code is loosely based on the orginal design, but heavily modified and enhanced with new features and also updated for the new AS5600 encoders and a TCA9548 I2C mux. With as much optimizations as possible it was possioble to squeeze all the features into the Atmega32u4 32 KB Flash ROM of the Arduino Pro Micro with just about 0.4% space left. :)
 
 ### Electronics and PCB (circuit boards)
-The **original** yoke controller PCB and the main PCB from Gagaus's project is still used here.
+The original yoke controller PCB and the main PCB from Gagaus's project is still used here.
 Since the new encoders uses only **two** GPIO pins and the unnecessary check for 24V was removed we get enough pins to wire all inputs directly to the Arduino, **not needing** the 74HC165 multiplexer chip in the orginal design. Instead we put some jumper wires on the main PCB in the empty 74HC165 component holes to complete the connections directly. By removing the mux we reduce the complexity of the firmware code and improve responsiveness. The two 74HC165D surface mounted chips are still used in the yoke PCB boards as before.
 
 In a future release I may replace the main PCB board with the current requirements.  
@@ -79,7 +80,8 @@ Low cost and cheaper options has some drawbacks that needs to be taken in consid
 
 However, the motors (775 DC) and BTS7960 43A drivers are easy to find and come at a very low cost. BLDC motors and drivers are at the next level cost wise. And what we achieve with these components is pretty impressive!
 
-Just keep in mind the weaknesses of the design and do not use strong forces sustained for a prolonged time as this can overheat the motors. I recommend using heat sinks on the motors and a fan controller that kicks in at about 40 centigrades. When you hear the fan power up, you know you are pushing it. That said, when flying normally with the aircraft properly trimmed this practically never occurs. Heat sinks, fan controllers and fans are all in the Part List (see Wiki section).
+> [!Note]
+> Just keep in mind the weaknesses of the design and do not use strong forces sustained for a prolonged time as this can overheat the motors. I recommend using heat sinks on the motors and a fan controller that kicks in at about 40 centigrades. When you hear the fan power up, you know you are pushing it. That said, when flying normally with the aircraft properly trimmed this practically never occurs. Heat sinks, fan controllers and fans are all in the Part List (see [Wiki section](https://github.com/barsk/Arduino_FFB_Yoke/wiki/Home)).
 
 ## Use at your own risk. 
 > [!Caution]
