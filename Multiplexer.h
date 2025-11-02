@@ -3,9 +3,11 @@
  http://www.gagagu.de
  https://github.com/gagagu/Arduino_FFB_Yoke
  https://www.youtube.com/@gagagu01
-*/
 
-/*
+2025 Edited by K. Jörg, @Barsk
+https://github.com/barsk/Arduino_FFB_Yoke
+
+
   This repository contains code for Arduino projects. 
   The code is provided "as is," without warranty of any kind, either express or implied, 
   including but not limited to the warranties of merchantability, 
@@ -42,48 +44,29 @@
 #include "src/Joystick.h"   // Include the Joystick class header file
 #include "defines.h"
 
-#ifdef ARDUINO_PRO_MICRO
-  #include "Rox74HC165.h"
-#endif
+#include "Rox74HC165.h"
+
+
+#define DEBOUNCE_MS 50
 
 class Multiplexer {
 private:
     Joystick_* joystick;  // Pointer to a Joystick object
     // variables for button pin states
-    uint16_t iYokeButtonPinStates = 0;
-    uint16_t iSensorPinStates = 0;
+    uint16_t yokeButtonPinState = 0;
+    uint16_t lastYokeButtonPinState = 0;
+    unsigned long lastDebounceTime = 0;
 
-    // Pointers to end switch states
-    bool blEndSwitchRollLeft;    
-    bool blEndSwitchRollRight;   
-    bool blEndSwitchPitchUp;     
-    bool blEndSwitchPitchDown;   
-    bool blCalibrationButtonPushed;
-    bool blMotorPower;
-    
-#ifdef ARDUINO_PRO_MICRO
-    Rox74HC165 <MUX_TOTAL_INT> mux_int;
     Rox74HC165 <MUX_TOTAL_YOKE> mux_yoke;
-#endif
 public:
     
     // Constructor: pass a pointer to a Joystick object
     Multiplexer(Joystick_* joystickPtr);
 
-    // Method to read from the multiplexer and update end switches
-    void ReadMux();
-
     // Method to update the joystick buttons based on multiplexer state
-    void UpdateJoystickButtons();
+    void updateJoystickButtons();
 
-    bool EndSwitchRollLeft();
-    bool EndSwitchRollRight();   
-    bool EndSwitchPitchUp();     
-    bool EndSwitchPitchDown();   
-    bool CalibrationButtonPushed(); 
-    bool MotorPower();
-    uint16_t GetYokeButtonPinStates();
-    uint16_t GetSensorPinStates();
+    uint16_t getYokeButtonPinStates();
 };
 
 #endif

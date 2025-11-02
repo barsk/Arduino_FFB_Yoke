@@ -3,9 +3,11 @@
  http://www.gagagu.de
  https://github.com/gagagu/Arduino_FFB_Yoke
  https://www.youtube.com/@gagagu01
-*/
 
-/*
+2025 Edited by K. Jörg, @Barsk
+https://github.com/barsk/Arduino_FFB_Yoke
+
+
   This repository contains code for Arduino projects. 
   The code is provided "as is," without warranty of any kind, either express or implied, 
   including but not limited to the warranties of merchantability, 
@@ -43,51 +45,13 @@
 class BeepManager {
   public:
     // Constructor
-    BeepManager(int pin);
-
-    // System Start
-    void SystemStart();
-
-    // Start Calibration
-    void CalibrationStart();
-
-    // Calibration Successful
-    void CalibrationSuccess();
-
-    // Calibration Error
-    void CalibrationError();
-
-    // Calibration Movement Timeout on Axis
-    void CalibrationTimeoutMotor(bool isRoll);
-
-    // General calibration Timeout
-    void CalibrationTimeoutGeneral(bool isRoll);
-
-    // Wrong motor direction
-    void CalibrationMotorInverted(bool isRoll);
-
-    // wrong encoder direction
-    void CalibrationEncoderInverted(bool isRoll);
-
-    // no motor power
-    void NoMotorPower();
-  private:
-    int buzzerPin;
-
-    // create tone
-    void ManualTone(int frequency, int duration);
+    BeepManager(const byte pin);
 
     // beep with drequency and duration
-    void Beep(int duration, int frequency);
+    void beep(const int duration, const int frequency);
 
-    // beep code for roll axis
-    void CalibrationBeepRoll();
-
-    // beep code for pitch axis
-    void CalibrationBeepPitch();
-
-    // switch between axis
-    void CalibrationBeepAxis(bool isRoll);
+  private:
+    byte buzzerPin;
 };
 
 #endif

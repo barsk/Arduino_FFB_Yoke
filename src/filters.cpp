@@ -9,7 +9,7 @@ LowPassFilter::LowPassFilter():
 
 LowPassFilter::LowPassFilter(float iCutOffFrequency, float iDeltaTime):
 	output(0),
-	ePow(1-exp(-iDeltaTime * 2 * PI * iCutOffFrequency))
+	ePow(1-exp(-iDeltaTime * (2 * PI) * iCutOffFrequency))
 {
 }
 
@@ -23,5 +23,5 @@ float LowPassFilter::update(float input, float deltaTime, float cutoffFrequency)
 }
 
 void LowPassFilter::reconfigureFilter(float deltaTime, float cutoffFrequency){
-	ePow = 1-exp(-deltaTime * 2 * PI * cutoffFrequency);
+	ePow = 1-exp(-deltaTime * (2 * PI) * cutoffFrequency);
 }

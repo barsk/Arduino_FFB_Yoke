@@ -16,10 +16,12 @@
   You should have received a copy of the GNU Lesser General Public
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+  2025 Edited by K. Jörg, @Barsk
+  https://github.com/barsk/Arduino_FFB_Yoke
 */
 
 #include "Joystick.h"
-#include "FFBDescriptor.h"
 #include "FFBDescriptor.h"
 #include "filters.h"
 #if defined(_USING_DYNAMIC_HID)
@@ -33,13 +35,13 @@
 #define JOYSTICK_INCLUDE_X_AXIS  B00000001
 #define JOYSTICK_INCLUDE_Y_AXIS  B00000010
 #define JOYSTICK_INCLUDE_Z_AXIS  B00000100
-#define JOYSTICK_INCLUDE_RX_AXIS B00001000
-#define JOYSTICK_INCLUDE_RY_AXIS B00010000
-#define JOYSTICK_INCLUDE_RZ_AXIS B00100000
+// #define JOYSTICK_INCLUDE_RX_AXIS B00001000
+// #define JOYSTICK_INCLUDE_RY_AXIS B00010000
+// #define JOYSTICK_INCLUDE_RZ_AXIS B00100000
 
-#define JOYSTICK_INCLUDE_RUDDER      B00000001
-#define JOYSTICK_INCLUDE_THROTTLE    B00000010
-#define JOYSTICK_INCLUDE_ACCELERATOR B00000100
+// #define JOYSTICK_INCLUDE_RUDDER      B00000001
+// #define JOYSTICK_INCLUDE_THROTTLE    B00000010
+// #define JOYSTICK_INCLUDE_ACCELERATOR B00000100
 
 const float cutoff_freq_damper   = 2.0;  //Cutoff frequency in Hz
 const float sampling_time_damper = 0.002; //Sampling time in seconds.
@@ -55,12 +57,13 @@ Joystick_::Joystick_(
 	uint8_t hatSwitchCount,
 	bool includeXAxis,
 	bool includeYAxis,
-	bool includeZAxis,
-	bool includeRxAxis,
-	bool includeRyAxis,
-	bool includeRzAxis,
-	bool includeRudder,
-	bool includeThrottle)
+	bool includeZAxis
+	// bool includeRxAxis,
+	// bool includeRyAxis,
+	// bool includeRzAxis,
+	// bool includeRudder,
+	// bool includeThrottle
+)
 {
     // Set the USB HID Report ID
     _hidReportId = hidReportId;
@@ -72,12 +75,12 @@ Joystick_::Joystick_(
 	_includeAxisFlags |= (includeXAxis ? JOYSTICK_INCLUDE_X_AXIS : 0);
 	_includeAxisFlags |= (includeYAxis ? JOYSTICK_INCLUDE_Y_AXIS : 0);
 	_includeAxisFlags |= (includeZAxis ? JOYSTICK_INCLUDE_Z_AXIS : 0);
-	_includeAxisFlags |= (includeRxAxis ? JOYSTICK_INCLUDE_RX_AXIS : 0);
-	_includeAxisFlags |= (includeRyAxis ? JOYSTICK_INCLUDE_RY_AXIS : 0);
-	_includeAxisFlags |= (includeRzAxis ? JOYSTICK_INCLUDE_RZ_AXIS : 0);
-	_includeSimulatorFlags = 0;
-	_includeSimulatorFlags |= (includeRudder ? JOYSTICK_INCLUDE_RUDDER : 0);
-	_includeSimulatorFlags |= (includeThrottle ? JOYSTICK_INCLUDE_THROTTLE : 0);
+	// _includeAxisFlags |= (includeRxAxis ? JOYSTICK_INCLUDE_RX_AXIS : 0);
+	// _includeAxisFlags |= (includeRyAxis ? JOYSTICK_INCLUDE_RY_AXIS : 0);
+	// _includeAxisFlags |= (includeRzAxis ? JOYSTICK_INCLUDE_RZ_AXIS : 0);
+	// _includeSimulatorFlags = 0;
+	// _includeSimulatorFlags |= (includeRudder ? JOYSTICK_INCLUDE_RUDDER : 0);
+	// _includeSimulatorFlags |= (includeThrottle ? JOYSTICK_INCLUDE_THROTTLE : 0);
 	
     // Build Joystick HID Report Description
 	
@@ -92,13 +95,13 @@ Joystick_::Joystick_(
 	// Axis Calculations
 	uint8_t axisCount = (includeXAxis == true)
 		+  (includeYAxis == true)
-		+  (includeZAxis == true)
-		+  (includeRxAxis == true)
-		+  (includeRyAxis == true)
-		+  (includeRzAxis == true);
+		+  (includeZAxis == true);
+		// +  (includeRxAxis == true)
+		// +  (includeRyAxis == true)
+		// +  (includeRzAxis == true);
 		
-	uint8_t simulationCount = (includeRudder == true)
-		+ (includeThrottle == true); 
+	// uint8_t simulationCount = (includeRudder == true)
+	// 	+ (includeThrottle == true); 
 		
 	static uint8_t tempHidReportDescriptor[150];
 	int hidReportDescriptorSize = 0;
@@ -332,23 +335,23 @@ Joystick_::Joystick_(
 			tempHidReportDescriptor[hidReportDescriptorSize++] = 0x32;
 		}
 		
-		if (includeRxAxis == true) {
-			// USAGE (Rx)
-			tempHidReportDescriptor[hidReportDescriptorSize++] = 0x09;
-			tempHidReportDescriptor[hidReportDescriptorSize++] = 0x33;
-		}
+		// if (includeRxAxis == true) {
+		// 	// USAGE (Rx)
+		// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x09;
+		// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x33;
+		// }
 		
-		if (includeRyAxis == true) {
-			// USAGE (Ry)
-			tempHidReportDescriptor[hidReportDescriptorSize++] = 0x09;
-			tempHidReportDescriptor[hidReportDescriptorSize++] = 0x34;
-		}
+		// if (includeRyAxis == true) {
+		// 	// USAGE (Ry)
+		// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x09;
+		// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x34;
+		// }
 		
-		if (includeRzAxis == true) {
-			// USAGE (Rz)
-			tempHidReportDescriptor[hidReportDescriptorSize++] = 0x09;
-			tempHidReportDescriptor[hidReportDescriptorSize++] = 0x35;
-		}
+		// if (includeRzAxis == true) {
+		// 	// USAGE (Rz)
+		// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x09;
+		// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x35;
+		// }
 		
 		// INPUT (Data,Var,Abs)
 		tempHidReportDescriptor[hidReportDescriptorSize++] = 0x81;
@@ -359,53 +362,53 @@ Joystick_::Joystick_(
 		
 	} // X, Y, Z, Rx, Ry, and Rz Axis	
 	
-	if (simulationCount > 0) {
+	// if (simulationCount > 0) {
 	
-		// USAGE_PAGE (Simulation Controls)
-		tempHidReportDescriptor[hidReportDescriptorSize++] = 0x05;
-		tempHidReportDescriptor[hidReportDescriptorSize++] = 0x02;
+	// 	// USAGE_PAGE (Simulation Controls)
+	// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x05;
+	// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x02;
 		
-		// LOGICAL_MINIMUM (-32767)
-		tempHidReportDescriptor[hidReportDescriptorSize++] = 0x16;
-		tempHidReportDescriptor[hidReportDescriptorSize++] = 0x01;
-		tempHidReportDescriptor[hidReportDescriptorSize++] = 0x80;
+	// 	// LOGICAL_MINIMUM (-32767)
+	// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x16;
+	// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x01;
+	// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x80;
 
-		// LOGICAL_MAXIMUM (+32767)
-		tempHidReportDescriptor[hidReportDescriptorSize++] = 0x26;
-		tempHidReportDescriptor[hidReportDescriptorSize++] = 0xFF;
-		tempHidReportDescriptor[hidReportDescriptorSize++] = 0x7F;
+	// 	// LOGICAL_MAXIMUM (+32767)
+	// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x26;
+	// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0xFF;
+	// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x7F;
 
-		// REPORT_SIZE (16)
-		tempHidReportDescriptor[hidReportDescriptorSize++] = 0x75;
-		tempHidReportDescriptor[hidReportDescriptorSize++] = 0x10;
+	// 	// REPORT_SIZE (16)
+	// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x75;
+	// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x10;
 
-		// REPORT_COUNT (simulationCount)
-		tempHidReportDescriptor[hidReportDescriptorSize++] = 0x95;
-		tempHidReportDescriptor[hidReportDescriptorSize++] = simulationCount;
+	// 	// REPORT_COUNT (simulationCount)
+	// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x95;
+	// 	tempHidReportDescriptor[hidReportDescriptorSize++] = simulationCount;
 
-		// COLLECTION (Physical)
-		tempHidReportDescriptor[hidReportDescriptorSize++] = 0xA1;
-		tempHidReportDescriptor[hidReportDescriptorSize++] = 0x00;
+	// 	// COLLECTION (Physical)
+	// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0xA1;
+	// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x00;
 
-		if (includeRudder == true) {
-			// USAGE (Rudder)
-			tempHidReportDescriptor[hidReportDescriptorSize++] = 0x09;
-			tempHidReportDescriptor[hidReportDescriptorSize++] = 0xBA;
-		}
+	// 	if (includeRudder == true) {
+	// 		// USAGE (Rudder)
+	// 		tempHidReportDescriptor[hidReportDescriptorSize++] = 0x09;
+	// 		tempHidReportDescriptor[hidReportDescriptorSize++] = 0xBA;
+	// 	}
 
-		if (includeThrottle == true) {
-			// USAGE (Throttle)
-			tempHidReportDescriptor[hidReportDescriptorSize++] = 0x09;
-			tempHidReportDescriptor[hidReportDescriptorSize++] = 0xBB;
-		}
+	// 	if (includeThrottle == true) {
+	// 		// USAGE (Throttle)
+	// 		tempHidReportDescriptor[hidReportDescriptorSize++] = 0x09;
+	// 		tempHidReportDescriptor[hidReportDescriptorSize++] = 0xBB;
+	// 	}
 
-		// INPUT (Data,Var,Abs)
-		tempHidReportDescriptor[hidReportDescriptorSize++] = 0x81;
-		tempHidReportDescriptor[hidReportDescriptorSize++] = 0x02;
+	// 	// INPUT (Data,Var,Abs)
+	// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x81;
+	// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0x02;
 		
-		// END_COLLECTION (Physical) 
-		tempHidReportDescriptor[hidReportDescriptorSize++] = 0xc0;
-	} // Simulation Controls
+	// 	// END_COLLECTION (Physical) 
+	// 	tempHidReportDescriptor[hidReportDescriptorSize++] = 0xc0;
+	// } // Simulation Controls
 
 	// Create a copy of the HID Report Descriptor template that is just the right size
 	uint8_t *customHidReportDescriptor = new uint8_t[hidReportDescriptorSize];
@@ -428,7 +431,7 @@ Joystick_::Joystick_(
 	_hidReportSize = _buttonValuesArraySize;
 	_hidReportSize += (_hatSwitchCount > 0);
 	_hidReportSize += (axisCount * 2);
-	_hidReportSize += (simulationCount * 2);
+	// _hidReportSize += (simulationCount * 2);
 	
 	// Initalize Joystick State
 	_xAxis = 0;
@@ -437,8 +440,8 @@ Joystick_::Joystick_(
 	_xAxisRotation = 0;
 	_yAxisRotation = 0;
 	_zAxisRotation = 0;
-	_throttle = 0;
-	_rudder = 0;
+	// _throttle = 0;
+	// _rudder = 0;
 	for (int index = 0; index < JOYSTICK_HATSWITCH_COUNT_MAXIMUM; index++)
 	{
 		_hatSwitchValues[index] = JOYSTICK_HATSWITCH_RELEASE;
@@ -447,6 +450,8 @@ Joystick_::Joystick_(
     {
         _buttonValues[index] = 0;
     }
+
+
 }
 
 void Joystick_::begin(bool initAutoSendState)
@@ -461,17 +466,22 @@ void Joystick_::begin(bool initAutoSendState)
     }
 }
 
-void Joystick_::getForce(int16_t* forces) {
+void Joystick_::getUSBPID()
+{
 	DynamicHID().RecvfromUsb();
+}
+
+void Joystick_::getForce(int16_t* forces) {
+	DynamicHID().RecvfromUsb(); 
 	forceCalculator(forces);
 }
 
 float Joystick_::getAngleRatio(volatile TEffectState& effect, int axis)
 {
-    float angle = (axis < 2 ? effect.direction[0] : effect.direction[1]) * 360.0 / 255.0 * DEG_TO_RAD;
+    float angle = (axis < 2 ? effect.direction[0] : effect.direction[1]) * (360.0 / 255.0 * DEG_TO_RAD);
     if (axis == 0)
     {
-        // angle=0 points "up"
+        // angle=0 points "elevator up" or joystick/yoke towards you, angle=90 points left
         return -1 * sin(angle);
     } else {
         return cos(angle);
@@ -479,6 +489,7 @@ float Joystick_::getAngleRatio(volatile TEffectState& effect, int axis)
 }
 
 int16_t Joystick_::getEffectForce(volatile TEffectState& effect, EffectParams _effect_params, uint8_t axis){
+
     float angle_ratio;
     uint8_t condition = 0;
     if (effect.enableAxis == DIRECTION_ENABLE && effect.conditionReportsCount > 1)
@@ -490,6 +501,19 @@ int16_t Joystick_::getEffectForce(volatile TEffectState& effect, EffectParams _e
     {
         angle_ratio = getAngleRatio(effect, axis);
     }
+
+	// if (effect.state == MEFFECTSTATE_PLAYING)
+    // {
+    //    Serial.print("axis ");
+    //    Serial.print(axis);
+    //    Serial.print(" dX ");
+    //    Serial.print(effect.direction[0] * 360.0 / 255.0);
+    //    Serial.print(" dY ");
+    //    Serial.print(effect.direction[1] * 360.0 / 255.0);
+	//     Serial.print(" angle_ratio ");
+    //    Serial.println(angle_ratio);
+    // }
+
 	int16_t force = 0;
 	switch (effect.effectType)
     {
@@ -524,7 +548,7 @@ int16_t Joystick_::getEffectForce(volatile TEffectState& effect, EffectParams _e
 	    	break;
 	    case USB_EFFECT_INERTIA://10
 	    	if (_effect_params.inertiaAcceleration < 0 && _effect_params.frictionPositionChange < 0) {
-	    		force = ConditionForceCalculator(effect, abs(NormalizeRange(_effect_params.inertiaAcceleration, m_effect_params[axis].inertiaMaxAcceleration)), condition) * angle_ratio * (float)(m_gains[axis].inertiaGain/100.0f);
+	    		force = ConditionForceCalculator(effect, abs(NormalizeRange(_effect_params.inertiaAcceleration, m_effect_params[axis].inertiaMaxAcceleration)), condition) * -angle_ratio * (float)(m_gains[axis].inertiaGain/100.0f);
 	    	}
 	    	else if (_effect_params.inertiaAcceleration < 0 && _effect_params.frictionPositionChange > 0) {
 	    		force = -1 * ConditionForceCalculator(effect, abs(NormalizeRange(_effect_params.inertiaAcceleration, m_effect_params[axis].inertiaMaxAcceleration)), condition) * angle_ratio * (float)(m_gains[axis].inertiaGain/100.0f);
@@ -537,13 +561,13 @@ int16_t Joystick_::getEffectForce(volatile TEffectState& effect, EffectParams _e
 	    	break;
 	    }
 
-		if (_serialPrintForces){
-		  Serial.print(axis);
+#ifdef _serialPrintForces
+		  Serial.print(axis);Serial.print(": [");
 		  Serial.print(effect.effectType);
-		  Serial.print(":");
-		  Serial.print(force);				
+		  Serial.print("]: ");
+		  Serial.println(force);				
 		  Serial.print(",");
-		}
+#endif
 		return force;
 }
 
@@ -551,24 +575,25 @@ void Joystick_::forceCalculator(int16_t* forces) {
     forces[0] = 0;
     forces[1] = 0;
 
-	if (_serialPrintForces){
+#ifdef _serialPrintForces
 	  Serial.print("!");
 	  Serial.print(SERIAL_CMD_DEBUG_FORCE_VALUES);
 	  Serial.print("|");
-	}
+#endif
 		
     // If the device is in default auto spring effect lets calculate it
     if (DynamicHID().pidReportHandler.deviceState == MDEVICESTATE_SPRING)
     {
         for (int axis = 0; axis < FFB_AXIS_COUNT; ++axis)
         {
-	    	forces[axis] = (int16_t)(NormalizeRange(m_effect_params[axis].springPosition, m_effect_params[axis].springMaxPosition) * -10000 * (float)(m_gains[axis].defaultSpringGain/100.0f)); // TODO
-			if (_serialPrintForces){
-				Serial.print(axis);
-				Serial.print("99:");
-				Serial.print(forces[axis]);
-				Serial.print(",");
-			} //_serialPrintForces
+			// forces[axis] = (int16_t) (NormalizeRange(m_effect_params[axis].springPosition, m_effect_params[axis].springMaxPosition) * -10000.0f * m_gains[axis].springGain/100.0f * m_gains[axis].totalGain/100.0f);
+			forces[axis] = (int16_t)(NormalizeRange(m_effect_params[axis].springPosition, m_effect_params[axis].springMaxPosition) * -10000.0f * m_gains[axis].defaultSpringGain/100.0f * m_gains[axis].totalGain/100.0f);
+
+#ifdef _serialPrintForces
+			Serial.print(axis);
+			Serial.print(F(" FORCE: "));
+			Serial.println(forces[axis]);	
+#endif
         } // axis
     } // MDEVICESTATE_SPRING
     else
@@ -591,8 +616,7 @@ void Joystick_::forceCalculator(int16_t* forces) {
                 // dont calculate effects that havent reached their startDelay
 	    	    (effect.elapsedTime >= 0) &&
                 // dont calculate effects that have already finished
-	    	    (effect.elapsedTime <= effect.duration) &&
-	    		!DynamicHID().pidReportHandler.deviceState)
+	    	    (effect.elapsedTime <= effect.duration) && !DynamicHID().pidReportHandler.deviceState)
             {
                 // if this is a directional conditional calculate the conditional parameters
                 // as the length in the direction of its angle. This is the same as the dot product of the vectors
@@ -601,17 +625,17 @@ void Joystick_::forceCalculator(int16_t* forces) {
                 {
                     for (int axis = 0; axis < FFB_AXIS_COUNT; ++axis)
                     {
-                        direction_effect_params.springPosition += m_effect_params[axis].springPosition * getAngleRatio(effect, axis);
-                        direction_effect_params.damperVelocity += m_effect_params[axis].damperVelocity * getAngleRatio(effect, axis);
-                        direction_effect_params.inertiaAcceleration += m_effect_params[axis].inertiaAcceleration * getAngleRatio(effect, axis);
-                        direction_effect_params.frictionPositionChange += m_effect_params[axis].frictionPositionChange * getAngleRatio(effect, axis);
+						float angleRatio = getAngleRatio(effect, axis);
+                        direction_effect_params.springPosition += m_effect_params[axis].springPosition * angleRatio;
+                        direction_effect_params.damperVelocity += m_effect_params[axis].damperVelocity * angleRatio;
+                        direction_effect_params.inertiaAcceleration += m_effect_params[axis].inertiaAcceleration * angleRatio;
+                        direction_effect_params.frictionPositionChange += m_effect_params[axis].frictionPositionChange * angleRatio;
                     }
                 }
 
                 for (int axis = 0; axis < FFB_AXIS_COUNT; ++axis)
                 {
-                    if (effect.enableAxis == DIRECTION_ENABLE
-                        || effect.enableAxis & (1 << axis))
+                    if (effect.enableAxis == DIRECTION_ENABLE || effect.enableAxis & (1 << axis))
                     {	
                         forces[axis] += (int16_t)(getEffectForce(effect, effect.conditionReportsCount == 1 ? direction_effect_params : m_effect_params[axis], axis));
                     }
@@ -619,9 +643,9 @@ void Joystick_::forceCalculator(int16_t* forces) {
             }
 	    }
 		
-		if (_serialPrintForces){
-		  Serial.println("");
-		}
+#ifdef _serialPrintForces
+		  Serial.println();
+#endif
 
     }
 
@@ -634,8 +658,10 @@ void Joystick_::forceCalculator(int16_t* forces) {
 
 int16_t Joystick_::ConstantForceCalculator(volatile TEffectState& effect) 
 {
-	float tempforce = (float)effect.magnitude * effect.gain / 255;
-	return (int16_t)tempforce;
+	// float tempforce = (float)effect.magnitude * effect.gain / 255;
+	// return (int16_t)tempforce;
+
+	return ApplyEnvelope(effect, (int32_t)effect.magnitude);
 }
 
 int16_t Joystick_::RampForceCalculator(volatile TEffectState& effect) 
@@ -665,56 +691,113 @@ int16_t Joystick_::SquareForceCalculator(volatile TEffectState& effect)
 
 int16_t Joystick_::SinForceCalculator(volatile TEffectState& effect) 
 {
-	float offset = effect.offset * 2;
-	float magnitude = effect.magnitude;
-	float phase = effect.phase;
-	float timeTemp = effect.elapsedTime;
-	float period = effect.period;
-	float angle = ((timeTemp / period) + (phase / 36000.0)) * 2 * PI;
+	// Original FINO code
+	// float offset = effect.offset * 2;
+	// float magnitude = effect.magnitude;
+	// float phase = effect.phase;
+	// float timeTemp = effect.elapsedTime;
+	// float period = effect.period;
+	// float angle = ((timeTemp / period) + (phase / 36000.0)) * TWO_PI;
+	// float sine = sin(angle);
+	// float tempforce = sine * magnitude;
+	// tempforce += offset;
+	// return ApplyEnvelope(effect, tempforce);
+
+	// Code from YukMingLaw (slightly modified), more code efficcient in AVR
+	int16_t offset = effect.offset * 2;
+	int16_t magnitude = effect.magnitude;
+	uint16_t phase = effect.phase;
+	uint16_t timeTemp = effect.elapsedTime;
+	uint16_t period = effect.period;
+	float angle = 0.0;
+	if(period != 0)
+		angle = ((timeTemp * 1.0 / period) * TWO_PI + (phase / 36000.0));
 	float sine = sin(angle);
-	float tempforce = sine * magnitude;
+	int32_t tempforce = (int32_t)(sine * magnitude);
 	tempforce += offset;
 	return ApplyEnvelope(effect, tempforce);
 }
 
 int16_t Joystick_::TriangleForceCalculator(volatile TEffectState& effect)
 {
-	float offset = effect.offset * 2;
-	float magnitude = effect.magnitude;
-	float elapsedTime = effect.elapsedTime;
+	// Original FINO code
+	// float offset = effect.offset * 2;
+	// float magnitude = effect.magnitude;
+	// float elapsedTime = effect.elapsedTime;
+	// uint16_t phase = effect.phase;
+	// uint16_t period = effect.period;
+	// float periodF = effect.period;
+
+	// float maxMagnitude = offset + magnitude;
+	// float minMagnitude = offset - magnitude;
+	// uint16_t phasetime = (phase * period) / 36000;
+	// uint16_t timeTemp = elapsedTime + phasetime;
+	// float reminder = timeTemp % period;
+	// float slope = ((maxMagnitude - minMagnitude) * 2) / periodF;
+	// float tempforce = 0;
+	// if (reminder > (periodF / 2)) tempforce = slope * (periodF - reminder);
+	// else tempforce = slope * reminder;
+	// tempforce += minMagnitude;
+	// return ApplyEnvelope(effect, -tempforce);
+
+	// Code from YukMingLaw (slightly modified), more code efficient in AVR
+	int16_t offset = effect.offset * 2;
+	int16_t magnitude = effect.magnitude;
+	uint16_t elapsedTime = effect.elapsedTime;
 	uint16_t phase = effect.phase;
 	uint16_t period = effect.period;
-	float periodF = effect.period;
+	uint16_t periodF = effect.period;
 
-	float maxMagnitude = offset + magnitude;
-	float minMagnitude = offset - magnitude;
-	uint16_t phasetime = (phase * period) / 36000;
-	uint16_t timeTemp = elapsedTime + phasetime;
-	float reminder = timeTemp % period;
-	float slope = ((maxMagnitude - minMagnitude) * 2) / periodF;
-	float tempforce = 0;
+	int16_t maxMagnitude = offset + magnitude;
+	int16_t minMagnitude = offset - magnitude;
+	int32_t phasetime = (phase * period) / 36000;
+	uint32_t timeTemp = elapsedTime + phasetime;
+	int32_t reminder = timeTemp % period;
+	int32_t slope = ((maxMagnitude - minMagnitude) * 2) / periodF;
+	int32_t tempforce = 0;
 	if (reminder > (periodF / 2)) tempforce = slope * (periodF - reminder);
 	else tempforce = slope * reminder;
 	tempforce += minMagnitude;
 	return ApplyEnvelope(effect, -tempforce);
+
 }
 
 int16_t Joystick_::SawtoothDownForceCalculator(volatile TEffectState& effect) 
 {
-	float offset = effect.offset * 2;
-	float magnitude = effect.magnitude;
-	float elapsedTime = effect.elapsedTime;
-	float phase = effect.phase;
-	uint16_t period = effect.period;
-	float periodF = effect.period;
+	// Original FINO code
+	// float offset = effect.offset * 2;
+	// float magnitude = effect.magnitude;
+	// float elapsedTime = effect.elapsedTime;
+	// float phase = effect.phase;
+	// uint16_t period = effect.period;
+	// float periodF = effect.period;
 
-	float maxMagnitude = offset + magnitude;
-	float minMagnitude = offset - magnitude;
-	int16_t phasetime = (phase * period) / 36000;
-	uint16_t timeTemp = elapsedTime + phasetime;
-	float reminder = timeTemp % period;
-	float slope = (maxMagnitude - minMagnitude) / periodF;
-	float tempforce = 0;
+	// Code from YukMingLaw (slightly modified), more code efficient in AVR
+	// float maxMagnitude = offset + magnitude;
+	// float minMagnitude = offset - magnitude;
+	// int16_t phasetime = (phase * period) / 36000;
+	// uint16_t timeTemp = elapsedTime + phasetime;
+	// float reminder = timeTemp % period;
+	// float slope = (maxMagnitude - minMagnitude) / periodF;
+	// float tempforce = 0;
+	// tempforce = slope * (period - reminder);
+	// tempforce += minMagnitude;
+	// return ApplyEnvelope(effect, -tempforce);
+
+	int16_t offset = effect.offset * 2;
+	int16_t magnitude = effect.magnitude;
+	uint16_t elapsedTime = effect.elapsedTime;
+	uint16_t phase = effect.phase;
+	uint16_t period = effect.period;
+	uint16_t periodF = effect.period;
+
+	int16_t maxMagnitude = offset + magnitude;
+	int16_t minMagnitude = offset - magnitude;
+	int32_t phasetime = (phase * period) / 36000;
+	uint32_t timeTemp = elapsedTime + phasetime;
+	int32_t reminder = timeTemp % period;
+	int32_t slope = (maxMagnitude - minMagnitude) / periodF;
+	int32_t tempforce = 0;
 	tempforce = slope * (period - reminder);
 	tempforce += minMagnitude;
 	return ApplyEnvelope(effect, -tempforce);
@@ -722,20 +805,39 @@ int16_t Joystick_::SawtoothDownForceCalculator(volatile TEffectState& effect)
 
 int16_t Joystick_::SawtoothUpForceCalculator(volatile TEffectState& effect) 
 {
-	float offset = effect.offset * 2;
-	float magnitude = effect.magnitude;
-	float elapsedTime = effect.elapsedTime;
+	// Original FINO code
+	// float offset = effect.offset * 2;
+	// float magnitude = effect.magnitude;
+	// float elapsedTime = effect.elapsedTime;
+	// uint16_t phase = effect.phase;
+	// uint16_t period = effect.period;
+	// float periodF = effect.period;
+	// float maxMagnitude = offset + magnitude;
+	// float minMagnitude = offset - magnitude;
+	// int16_t phasetime = (phase * period) / 36000;
+	// uint16_t timeTemp = elapsedTime + phasetime;
+	// float reminder = timeTemp % period;
+	// float slope = (maxMagnitude - minMagnitude) / periodF;
+	// float tempforce = 0;
+	// tempforce = slope * reminder;
+	// tempforce += minMagnitude;
+	// return ApplyEnvelope(effect, -tempforce);
+
+	// Code from YukMingLaw (slightly modified), more code efficient in AVR
+	int16_t offset = effect.offset * 2;
+	int16_t magnitude = effect.magnitude;
+	uint16_t elapsedTime = effect.elapsedTime;
 	uint16_t phase = effect.phase;
 	uint16_t period = effect.period;
-	float periodF = effect.period;
+	uint16_t periodF = effect.period;
 
-	float maxMagnitude = offset + magnitude;
-	float minMagnitude = offset - magnitude;
-	int16_t phasetime = (phase * period) / 36000;
-	uint16_t timeTemp = elapsedTime + phasetime;
-	float reminder = timeTemp % period;
-	float slope = (maxMagnitude - minMagnitude) / periodF;
-	float tempforce = 0;
+	int16_t maxMagnitude = offset + magnitude;
+	int16_t minMagnitude = offset - magnitude;
+	int32_t phasetime = (phase * period) / 36000;
+	uint32_t timeTemp = elapsedTime + phasetime;
+	int32_t reminder = timeTemp % period;
+	int32_t slope = (maxMagnitude - minMagnitude) / periodF;
+	int32_t tempforce = 0;
 	tempforce = slope * reminder;
 	tempforce += minMagnitude;
 	return ApplyEnvelope(effect, -tempforce);
@@ -866,16 +968,16 @@ void Joystick_::setZAxis(int16_t value)
 	if (_autoSendState) sendState();
 }
 
-void Joystick_::setRudder(int16_t value)
-{
-	_rudder = value;
-	if (_autoSendState) sendState();
-}
-void Joystick_::setThrottle(int16_t value)
-{
-	_throttle = value;
-	if (_autoSendState) sendState();
-}
+// void Joystick_::setRudder(int16_t value)
+// {
+// 	_rudder = value;
+// 	if (_autoSendState) sendState();
+// }
+// void Joystick_::setThrottle(int16_t value)
+// {
+// 	_throttle = value;
+// 	if (_autoSendState) sendState();
+// }
 
 void Joystick_::setHatSwitch(int8_t hatSwitchIndex, int16_t value)
 {
@@ -965,13 +1067,13 @@ void Joystick_::sendState()
 	index += buildAndSetAxisValue(_includeAxisFlags & JOYSTICK_INCLUDE_X_AXIS, _xAxis, _xAxisMinimum, _xAxisMaximum, &(data[index]));
 	index += buildAndSetAxisValue(_includeAxisFlags & JOYSTICK_INCLUDE_Y_AXIS, _yAxis, _yAxisMinimum, _yAxisMaximum, &(data[index]));
 	index += buildAndSetAxisValue(_includeAxisFlags & JOYSTICK_INCLUDE_Z_AXIS, _zAxis, _zAxisMinimum, _zAxisMaximum, &(data[index]));
-	index += buildAndSetAxisValue(_includeAxisFlags & JOYSTICK_INCLUDE_RX_AXIS, _xAxisRotation, _rxAxisMinimum, _rxAxisMaximum, &(data[index]));
-	index += buildAndSetAxisValue(_includeAxisFlags & JOYSTICK_INCLUDE_RY_AXIS, _yAxisRotation, _ryAxisMinimum, _ryAxisMaximum, &(data[index]));
-	index += buildAndSetAxisValue(_includeAxisFlags & JOYSTICK_INCLUDE_RZ_AXIS, _zAxisRotation, _rzAxisMinimum, _rzAxisMaximum, &(data[index]));
+	// index += buildAndSetAxisValue(_includeAxisFlags & JOYSTICK_INCLUDE_RX_AXIS, _xAxisRotation, _rxAxisMinimum, _rxAxisMaximum, &(data[index]));
+	// index += buildAndSetAxisValue(_includeAxisFlags & JOYSTICK_INCLUDE_RY_AXIS, _yAxisRotation, _ryAxisMinimum, _ryAxisMaximum, &(data[index]));
+	// index += buildAndSetAxisValue(_includeAxisFlags & JOYSTICK_INCLUDE_RZ_AXIS, _zAxisRotation, _rzAxisMinimum, _rzAxisMaximum, &(data[index]));
 	
 	// Set Simulation Values
-	index += buildAndSetSimulationValue(_includeSimulatorFlags & JOYSTICK_INCLUDE_RUDDER, _rudder, _rudderMinimum, _rudderMaximum, &(data[index]));
-	index += buildAndSetSimulationValue(_includeSimulatorFlags & JOYSTICK_INCLUDE_THROTTLE, _throttle, _throttleMinimum, _throttleMaximum, &(data[index]));
+	// index += buildAndSetSimulationValue(_includeSimulatorFlags & JOYSTICK_INCLUDE_RUDDER, _rudder, _rudderMinimum, _rudderMaximum, &(data[index]));
+	// index += buildAndSetSimulationValue(_includeSimulatorFlags & JOYSTICK_INCLUDE_THROTTLE, _throttle, _throttleMinimum, _throttleMaximum, &(data[index]));
 
 	DynamicHID().SendReport(_hidReportId, data, _hidReportSize);
 }

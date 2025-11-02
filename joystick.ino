@@ -3,9 +3,11 @@
  http://www.gagagu.de
  https://github.com/gagagu/Arduino_FFB_Yoke
  https://www.youtube.com/@gagagu01
-*/
 
-/*
+2025 Edited by K. Jörg, @Barsk
+https://github.com/barsk/Arduino_FFB_Yoke
+
+
   This repository contains code for Arduino projects. 
   The code is provided "as is," without warranty of any kind, either express or implied, 
   including but not limited to the warranties of merchantability, 
@@ -39,46 +41,24 @@
 /******************************************
   setup joystick and initialisation
 *******************************************/
-void SetupJoystick() {
-  if(IsEepromDataAvailable()==1)
-  {
-    ReadDataFromEeprom();
+void setupJoystick() {
+   setupDefaults();
+
+  if(isEepromDataValid()) {
+    readSettingsFromEeprom();
   }else{
-    SetupDefaults();
+    writeSettingsToEeprom(); // store defaults
   }
 
-  SetGains();                           // set gains
-  SetRangeJoystick();                   // set range
-  Joystick.begin(false);                // start joystick emulation (no auto send updates);
+  Joystick.setGains(gains);
 }
 
 // default values
-void SetupDefaults(){
-  gains[MEM_ROLL].totalGain = default_gain;
-  gains[MEM_ROLL].constantGain = default_gain;
-  gains[MEM_ROLL].rampGain = default_gain;
-  gains[MEM_ROLL].squareGain = default_gain;
-  gains[MEM_ROLL].sineGain = default_gain;
-  gains[MEM_ROLL].triangleGain = default_gain;
-  gains[MEM_ROLL].sawtoothdownGain = default_gain;
-  gains[MEM_ROLL].sawtoothupGain = default_gain;
-  gains[MEM_ROLL].springGain = default_gain;
-  gains[MEM_ROLL].damperGain = default_gain;
-  gains[MEM_ROLL].inertiaGain = default_gain;
-  gains[MEM_ROLL].frictionGain = default_friction_gain;
+void setupDefaults(){
+  gains[MEM_ROLL].totalGain = 80;
+  gains[MEM_PITCH].totalGain = 50;
 
-  gains[MEM_PITCH].totalGain = default_gain;
-  gains[MEM_PITCH].constantGain = default_gain;
-  gains[MEM_PITCH].rampGain = default_gain;
-  gains[MEM_PITCH].squareGain = default_gain;
-  gains[MEM_PITCH].sineGain = default_gain;
-  gains[MEM_PITCH].triangleGain = default_gain;
-  gains[MEM_PITCH].sawtoothdownGain = default_gain;
-  gains[MEM_PITCH].sawtoothupGain = default_gain;
-  gains[MEM_PITCH].springGain = default_gain;
-  gains[MEM_PITCH].damperGain = default_gain;
-  gains[MEM_PITCH].inertiaGain = default_gain;
-  gains[MEM_PITCH].frictionGain = default_friction_gain;
+  maxVelocityPcnt = 60;
 
   effects[MEM_ROLL].frictionMaxPositionChange = default_frictionMaxPositionChange_ROLL;
   effects[MEM_ROLL].inertiaMaxAcceleration = default_inertiaMaxAcceleration_ROLL;
@@ -88,79 +68,67 @@ void SetupDefaults(){
   effects[MEM_PITCH].inertiaMaxAcceleration = default_inertiaMaxAcceleration_PITCH;
   effects[MEM_PITCH].damperMaxVelocity = default_damperMaxVelocity_PITCH;
 
-  adjForceMax[MEM_ROLL]=default_ROLL_FORCE_MAX;
-  adjPwmMin[MEM_ROLL]=default_ROLL_PWM_MIN;
-  adjPwmMax[MEM_ROLL]=default_ROLL_PWM_MAX;
+  adjPwmMin[MEM_ROLL] = default_ROLL_PWM_MIN;
+  adjPwmMin[MEM_PITCH] = default_PITCH_PWM_MIN;
 
-  adjForceMax[MEM_PITCH]=default_PITCH_FORCE_MAX;
-  adjPwmMin[MEM_PITCH]=default_PITCH_PWM_MIN;
-  adjPwmMax[MEM_PITCH]=default_PITCH_PWM_MAX;
+  for (byte i = MEM_ROLL; i <= MEM_PITCH; i++) {
+    gains[i].constantGain = default_gain;
+    gains[i].rampGain = default_gain;
+    gains[i].squareGain = default_gain;
+    gains[i].sineGain = default_gain;
+    gains[i].triangleGain = default_gain;
+    gains[i].sawtoothdownGain = default_gain;
+    gains[i].sawtoothupGain = default_gain;
+    gains[i].springGain = default_gain;
+    gains[i].damperGain = default_gain;
+    gains[i].inertiaGain = default_gain;
+    gains[i].frictionGain = default_friction_gain;
+    gains[i].defaultSpringGain = default_spring_gain;
+  }
 }
 
-void SetRangeJoystick() {
-  Joystick.setXAxisRange(rollAxis.GetConfiguration().iMin, rollAxis.GetConfiguration().iMax);
-  Joystick.setYAxisRange(pitchAxis.GetConfiguration().iMin,  pitchAxis.GetConfiguration().iMax);
+void setRangeJoystick() {
+  // Joystick.setXAxisRange(axis[MEM_ROLL]->config.iMin + SOFT_LOCK_X, axis[MEM_ROLL]->config.iMax - SOFT_LOCK_X);
+  Joystick.setXAxisRange(axis[MEM_ROLL].config.iMin, axis[MEM_ROLL].config.iMax);
+  Joystick.setYAxisRange(axis[MEM_PITCH].config.iMin + SOFT_LOCK_Y, axis[MEM_PITCH].config.iMax - SOFT_LOCK_Y);
 }
 
-void SetGains() {
-  Joystick.setGains(gains);
-}
-
-void UpdateEffects(bool recalculate) {
+void updateEffects(bool recalculate) {
   //If you need to use the spring effect, set the following parameters.`Position` is the current position of the force feedback axis.
   //For example, connect the encoder with the action axis,the current encoder value is `Positon` and the max encoder value is `MaxPosition`.
-  effects[MEM_ROLL].springMaxPosition = rollAxis.GetConfiguration().iMax;
-  effects[MEM_PITCH].springMaxPosition =  pitchAxis.GetConfiguration().iMax;
 
-  effects[MEM_ROLL].springPosition = counterRollValue;
-  effects[MEM_PITCH].springPosition = counterPitchValue;
-
-  unsigned long currentMillis = millis();
+   unsigned long currentMillis = millis();
   int16_t diffTime = currentMillis - lastEffectsUpdate;
 
-  if (diffTime > 0 && recalculate) {
-    lastEffectsUpdate = currentMillis;
-    int16_t positionChangeX = counterRollValue - lastX;
-    int16_t positionChangeY = counterPitchValue - lastY;
-    int16_t velX = positionChangeX / diffTime;
-    int16_t velY = positionChangeY / diffTime;
-    int16_t accelX = ((velX - lastVelX) * 10) / diffTime;
-    int16_t accelY = ((velY - lastVelY) * 10) / diffTime;
+  for (byte i = MEM_ROLL; i <= MEM_PITCH; i++) {
+    effects[i].springMaxPosition = axis[i].config.iMax - axis[i].config.softLock_range;
+    effects[i].springPosition = encoderPos[i];
 
-    //If you need to use the friction effect, set the following parameters.`PositionChange`
-    //is the position difference of the force feedback axis.
-    effects[MEM_ROLL].frictionPositionChange = velX;
-    effects[MEM_PITCH].frictionPositionChange = velY;
+    int16_t positionChange, accel, vel;
+    if (diffTime > 0 && recalculate) {
+      lastEffectsUpdate = currentMillis;
+      positionChange = encoderPos[i] - physicsData[i].lastPos;
+      vel = positionChange / diffTime;
+      accel = ((vel - physicsData[i].lastVel) * 10) / diffTime;
 
-    //If you need to use the damper effect, set the following parameters.`Velocity` is the current velocity of the force feedback axis.
-    effects[MEM_ROLL].inertiaAcceleration = accelX;
-    effects[MEM_PITCH].inertiaAcceleration = accelY;
+      //If you need to use the friction effect, set the following parameters.`PositionChange`
+      //is the position difference of the force feedback axis.
+      effects[i].frictionPositionChange = positionChange;
 
-    //If you need to use the inertia effect, set the following parameters.`Acceleration` is the current acceleration of the force feedback axis.
-    effects[MEM_ROLL].damperVelocity = velX;
-    effects[MEM_PITCH].damperVelocity = velY;
+      //If you need to use the damper effect, set the following parameters.`Velocity` is the current velocity of the force feedback axis.
+      effects[i].inertiaAcceleration = accel;
 
-    lastX = counterRollValue;
-    lastY = counterPitchValue;
-    lastVelX = velX;
-    lastVelY = velY;
-    lastAccelX = accelX;
-    lastAccelY = accelY;
-  } else {
-    effects[MEM_ROLL].frictionPositionChange = lastVelX;
-    effects[MEM_PITCH].frictionPositionChange = lastVelY;
-    effects[MEM_ROLL].inertiaAcceleration = lastAccelX;
-    effects[MEM_PITCH].inertiaAcceleration = lastAccelY;
-    effects[MEM_ROLL].damperVelocity = lastVelX;
-    effects[MEM_PITCH].damperVelocity = lastVelY;
+      //If you need to use the inertia effect, set the following parameters.`Acceleration` is the current acceleration of the force feedback axis.
+      effects[i].damperVelocity = vel;
+
+      physicsData[i].lastPos = encoderPos[i];
+      physicsData[i].lastAccel = accel;
+      physicsData[i].lastVel = vel;
+    } 
   }
-
-
-  Joystick.setXAxis(-counterRollValue);
-  Joystick.setYAxis(counterPitchValue);
-
-
+  
+  Joystick.setXAxis(encoderPos[MEM_ROLL]);
+  Joystick.setYAxis(encoderPos[MEM_PITCH]);
   Joystick.setEffectParams(effects);
-
   Joystick.getForce(forces);
 }

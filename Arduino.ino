@@ -3,9 +3,11 @@
  http://www.gagagu.de
  https://github.com/gagagu/Arduino_FFB_Yoke
  https://www.youtube.com/@gagagu01
-*/
 
-/*
+2025 Edited by K. Jörg, @Barsk
+https://github.com/barsk/Arduino_FFB_Yoke
+
+
   This repository contains code for Arduino projects. 
   The code is provided "as is," without warranty of any kind, either express or implied, 
   including but not limited to the warranties of merchantability, 
@@ -38,7 +40,7 @@
 /***************
   Pin setup
 ****************/
-void ArduinoSetup() {
+void arduinoSetup() {
 
   // Pitch motor driver Pins
   pinMode(PITCH_EN, OUTPUT);
@@ -53,57 +55,38 @@ void ArduinoSetup() {
   // Buzzer pin
   pinMode(BUZZER_PIN, OUTPUT);
 
-#ifdef ARDUINO_PRO_MICRO  
   // Multiplexer Yoke Buttons
   pinMode(MUX_YOKE_OUT, INPUT);
   pinMode(MUX_YOKE_PL, OUTPUT);
   pinMode(MUX_YOKE_CLK, OUTPUT);
 
-  // Multiplexer Calibration Button, Power Measure, IR Sensors
-  pinMode(MUX_INT_OUT, INPUT);
-  pinMode(MUX_INT_PL, OUTPUT);
-  pinMode(MUX_INT_CLK, OUTPUT);
+  // IR Sensor pins
+  pinMode(IR_ROLL_LEFT, INPUT);
+  pinMode(IR_ROLL_RIGHT, INPUT);
+  pinMode(IR_PITCH_UP, INPUT);
+  pinMode(IR_PITCH_DOWN, INPUT);
 
-#else
-  // Buttons Pins (Multiplexer)
-  pinMode(MUX_S0, OUTPUT);
-  pinMode(MUX_S1, OUTPUT);
-  pinMode(MUX_S2, OUTPUT);
-  pinMode(MUX_S3, OUTPUT);
+  // Calibration Button pin
+  pinMode(CALIB_BUTTON_PIN, INPUT);
 
-  pinMode(MUX_EN_YOKE, OUTPUT);
-  pinMode(MUX_SIGNAL_YOKE, INPUT);
 
-  pinMode(MUX_EN_INPUT, OUTPUT);
-  pinMode(MUX_SIGNAL_INPUT, INPUT);
-#endif
+  ////////////////////////////
+  // define pin default states
+  digitalWrite(BUZZER_PIN, LOW);
 
-// define pin default states
-digitalWrite(BUZZER_PIN,LOW);
-
-// Pitch
-digitalWrite(PITCH_EN, LOW);
-digitalWrite(PITCH_U_PWM, LOW);
-digitalWrite(PITCH_D_PWM, LOW);
-//Roll
-digitalWrite(ROLL_EN, LOW);
-digitalWrite(ROLL_R_PWM, LOW);
-digitalWrite(ROLL_L_PWM, LOW);
+  // Pitch
+  digitalWrite(PITCH_EN, LOW);
+  digitalWrite(PITCH_U_PWM, LOW);
+  digitalWrite(PITCH_D_PWM, LOW);
+  //Roll
+  digitalWrite(ROLL_EN, LOW);
+  digitalWrite(ROLL_R_PWM, LOW);
+  digitalWrite(ROLL_L_PWM, LOW);
 
   // Multiplexer
-#ifdef ARDUINO_PRO_MICRO  
+
   digitalWrite(MUX_YOKE_PL, HIGH);
   digitalWrite(MUX_YOKE_CLK, LOW);
-  digitalWrite(MUX_INT_PL, HIGH);
-  digitalWrite(MUX_INT_CLK, LOW);
-#else
-  digitalWrite(MUX_S0, LOW);
-  digitalWrite(MUX_S1, LOW);
-  digitalWrite(MUX_S2, LOW);
-  digitalWrite(MUX_S3, LOW);
-  digitalWrite(MUX_EN_YOKE, HIGH);
-  digitalWrite(MUX_EN_INPUT, HIGH);
-#endif
 
   // not for all Arduinos!
   // This sets the PWM Speed to maximun for noise reduction
@@ -115,16 +98,14 @@ digitalWrite(ROLL_L_PWM, LOW);
   TCCR4B = _BV(CS40);  // change the PWM frequencey to 31.25kHz - pin 13 & 6
 
   //Timer3: pin 5
- #ifdef ARDUINO_PRO_MICRO  
-   TCCR3B = _BV(CS30);  // Change the PWM frequency to 31.25kHz - pin 5
- #endif
- 
+
+  TCCR3B = _BV(CS30);  // Change the PWM frequency to 31.25kHz - pin 5
 }  //ArduinoSetup
 
 /**************************
   Enables the motordrivers
 ****************************/
-void EnableMotors() {
+void enableMotors() {
   digitalWrite(PITCH_EN, HIGH);
   digitalWrite(ROLL_EN, HIGH);
 }  //EnableMotors
@@ -132,80 +113,15 @@ void EnableMotors() {
 /***************************
   Disables the motordrivers
 ****************************/
-void DisableMotors() {
+void disableMotors() {
   digitalWrite(PITCH_EN, LOW);
   digitalWrite(ROLL_EN, LOW);
 
   analogWrite(ROLL_L_PWM, 0);  // stop left
   analogWrite(ROLL_R_PWM, 0);  // stop right
-  roll_speed = 0;              // speed to 0
 
-  analogWrite(PITCH_U_PWM, 0);  // stop left
-  analogWrite(PITCH_D_PWM, 0);  // stop right
-  pitch_speed = 0;              // speed to 0
+  analogWrite(PITCH_U_PWM, 0);  // stop up
+  analogWrite(PITCH_D_PWM, 0);  // stop down
 }  //DisableMotors
 
-/******************************************************
-  Prepare motors for movement
-******************************************************/
-void PrepareMotors() {
 
-  
-  // prepare motor for pitch direction
-  MoveMotorByForce(pitch_speed,
-                   (mux.EndSwitchPitchDown() || mux.EndSwitchPitchUp()),
-                   PITCH_U_PWM,
-                   PITCH_D_PWM,
-                   forces[MEM_PITCH],
-                   adjForceMax[MEM_PITCH],
-                   adjPwmMin[MEM_PITCH],
-                   adjPwmMax[MEM_PITCH]);
-
-  // prepare motor for roll direction
-  MoveMotorByForce(roll_speed,
-                   (mux.EndSwitchRollLeft() || mux.EndSwitchRollRight()),
-                   ROLL_L_PWM, 
-                   ROLL_R_PWM, 
-                   forces[MEM_ROLL],
-                   adjForceMax[MEM_ROLL],
-                   adjPwmMin[MEM_ROLL],
-                   adjPwmMax[MEM_ROLL]);
-
-}  //PrepareMotors
-
-/******************************************************
-  calculates the motor speeds and move
-******************************************************/
-void MoveMotorByForce(byte &rSpeed,
-                      bool blEndSwitch,
-                      byte pinLPWM,
-                      byte pinRPWM,
-                      int16_t gForce,
-                      int forceMax,
-                      byte pwmMin,
-                      byte pwmMax) {
-
-  // if position is on end switch then stop the motor
-  if (blEndSwitch) {
-    analogWrite(pinLPWM, 0);  // stop left
-    analogWrite(pinRPWM, 0);  // stop right
-    rSpeed = 0;               // speed to 0
-  } else {
-    // cut force to maximum value
-    int pForce = constrain(abs(gForce), 0, forceMax);
-    // calculate motor speed (pwm) by force between min pwm and max pwm speed
-    if(abs(pForce) > 10)
-      rSpeed = map(pForce, 0, forceMax, pwmMin, pwmMax);
-    else
-      rSpeed=0;
-
-   // which direction?
-    if (gForce > 0) {
-      analogWrite(pinRPWM, 0);       // stop right
-      analogWrite(pinLPWM, rSpeed);  // speed up left
-    } else {
-      analogWrite(pinLPWM, 0);       // stop left
-      analogWrite(pinRPWM, rSpeed);  // speed up right
-    }
-  }
-}  //MoveMotor

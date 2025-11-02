@@ -3,9 +3,11 @@
  http://www.gagagu.de
  https://github.com/gagagu/Arduino_FFB_Yoke
  https://www.youtube.com/@gagagu01
-*/
 
-/*
+2025 Edited by K. Jörg, @Barsk
+https://github.com/barsk/Arduino_FFB_Yoke
+
+
   This repository contains code for Arduino projects. 
   The code is provided "as is," without warranty of any kind, either express or implied, 
   including but not limited to the warranties of merchantability, 
@@ -38,84 +40,55 @@
 #ifndef DEFINES_H
 #define DEFINES_H
 
-/*****************************
- uncomment for Serial Debug, only Sensor Data will be write to Serial Monitor
-*****************************/
-//#define SERIAL_DEBUG 1
+#define FIRMWARE_VERSION 1  // one byte, max 254
 
 /*****************************
- -uncomment for Ardunio Pro Micro
- -comment out for Arduino Micro (original)
+ Uncomment for Serial Debug, motors are disabled, debug data will be written to Serial Monitor
 *****************************/
-#define ARDUINO_PRO_MICRO 1
-
+// #define SERIAL_DEBUG
 
 #define SERIAL_BAUD 115200  // Communication Speed
+#define BUZZER_PIN 4
 
-#ifdef ARDUINO_PRO_MICRO
-  #define BUZZER_PIN 4
-#else
-  #define BUZZER_PIN 12
-#endif
 
-// Roll Encoder Pins
-#define ROLL_ENC_A 0
-#define ROLL_ENC_B 1
+// IR sensor Pins
+#define IR_ROLL_LEFT 0
+#define IR_ROLL_RIGHT 1
+#define IR_PITCH_UP 15
+#define IR_PITCH_DOWN 14
 
-// Pitch Encoder Pins
-#define PITCH_ENC_A 3
-#define PITCH_ENC_B 2
+// Calibration Button pin, IR Sensors pins
+#define CALIB_BUTTON_PIN 16
 
-#ifdef ARDUINO_PRO_MICRO
-  // Pitch Motordriver pins
-  #define PITCH_EN 7
-  #define PITCH_U_PWM 5
-  #define PITCH_D_PWM 6
-#else
-  // Pitch Motordriver pins
-  #define PITCH_EN 11
-  #define PITCH_U_PWM 6
-  #define PITCH_D_PWM 13
-#endif
+// Encoder Pins (via TCA9548 mux)
+// On PCB marked as 
+#define I2C_SDA 2 // (PIT_A)
+#define I2C_SCL 3 // (PIT_B)
+
+
+// Pitch Motordriver pins
+#define PITCH_EN 7
+#define PITCH_U_PWM 5
+#define PITCH_D_PWM 6
 
 // Roll Motordriver pins
 #define ROLL_EN 8
-#define ROLL_R_PWM 9
-#define ROLL_L_PWM 10
+#define ROLL_R_PWM 10
+#define ROLL_L_PWM 9
 
 
-  //ARDUINO_PRO_MICRO
-  // Multiplexer Yoke Buttons
-  #define MUX_YOKE_OUT A3
-  #define MUX_YOKE_PL A2
-  #define MUX_YOKE_CLK A1
+//ARDUINO_PRO_MICRO
+// Multiplexer Yoke Buttons
+// A3, A2, A1
 
-  // Multiplexer Calibration Button, Power Measure, IR Sensors
-  #define MUX_INT_OUT 16
-  #define MUX_INT_PL 15
-  #define MUX_INT_CLK 14
+#define MUX_YOKE_CLK 19
+#define MUX_YOKE_PL 20
+#define MUX_YOKE_OUT 21
 
   // for RoxMux Library
   // used for array sizes not pins!
-  #define MUX_TOTAL_INT 1
+  // #define MUX_TOTAL_INT 1
   #define MUX_TOTAL_YOKE 2
-
-  // Arduino Micro 
-  // multiplexer for buttons
-  #define MUX_S0 A0
-  #define MUX_S1 A1
-  #define MUX_S2 A2
-  #define MUX_S3 A3
-
-  // Multiplexer Yoke Buttons
-  #define MUX_EN_YOKE 5
-  #define MUX_SIGNAL_YOKE A5
-
-  // Multiplexer Adjustemts for Calib Button, Force Potis, End Switches
-  #define MUX_EN_INPUT 4
-  #define MUX_SIGNAL_INPUT A4
-
-
 
 /*****************************
   Memory array positions for Effects
@@ -124,122 +97,100 @@
 #define MEM_PITCH  1
 #define MEM_AXES  2
 
-// Adjustments array positions
-#define ADJ_ENDSWITCH_PITCH_DOWN 0
-#define ADJ_ENDSWITCH_PITCH_UP 1
-#define ADJ_ENDSWITCH_ROLL_LEFT 2
-#define ADJ_ENDSWITCH_ROLL_RIGHT 3
-#define ADJ_CALIBRATION_BUTTON 4
-#define ADJ_MOTOR_POWER 5
+/**************************** 
+ * EEPROM memory index 
+ ****************************/
+// Valid data in EEPROM is indicated by a combination of Magic number and version
+#define EEPROM_DATA_MAGIC_NUMBER   0b10101010 // Magic number to indicate if valid data is written
 
+#define EEPROM_DATA_AVAILABLE_INDEX 0     // eeprom address to indicate data available (size 1)
+#define EEPROM_FIRMWARE_VERSION_INDEX 1         // version indicator, 1 byte (0-254) 
 
-/******************************************
-   Communication Command Constants
-*******************************************/
-//Debug
-#define SERIAL_CMD_DEBUG_START 1
-#define SERIAL_CMD_DEBUG_STOP 2
-#define SERIAL_CMD_DEBUG_STATUS 3
-#define SERIAL_CMD_DEBUG_VALUES 4
+#define EEPROM_ENCODER_X_OFFSET_INDEX  2      // eeprom address of max encoder pos (size 4)
+#define EEPROM_ENCODER_X_MAX_INDEX  6      // eeprom address of max encoder pos (size 4)
+#define EEPROM_ENCODER_Y_MAX_INDEX  10     // eeprom address of max encoder pos (size 4)
 
-#define SERIAL_CMD_DEBUG_FORCE_VALUES 8
+#define EEPROM_MAX_VELOCITY_PCNT_INDEX 14
 
+#define EEPROM_ADJ_PWM_MIN_X_INDEX 15
+#define EEPROM_ADJ_PWM_MIN_Y_INDEX 16
 
-// read
-#define SERIAL_CMD_READ_ALL_PARAMS 10
-#define SERIAL_CMD_READ_ALL_VALUES 20
+#define EEPROM_TOTAL_GAIN_X_INDEX 17
+#define EEPROM_DEFAULT_SPRING_FORCE_X_INDEX 18
+#define EEPROM_TRAVEL_RANGE_X_INDEX 19  // Not used ATM.
 
-// Write Roll
-#define SERIAL_CDM_WRITE_ROLL_FORCE_MAX 101
-#define SERIAL_CDM_WRITE_ROLL_PWM_MIN 102
-#define SERIAL_CDM_WRITE_ROLL_PWM_MAX 103
+#define EEPROM_TOTAL_GAIN_Y_INDEX 20
+#define EEPROM_TRAVEL_RANGE_Y_INDEX 21 
+#define EEPROM_DEFAULT_SPRING_FORCE_Y_INDEX 22
 
-#define SERIAL_CDM_WRITE_ROLL_FRICTION_MAX_POSITION_CHANGE 104
-#define SERIAL_CDM_WRITE_ROLL_INERTIA_MAX_ACCELERATION 105
-#define SERIAL_CDM_WRITE_ROLL_DAMPER_MAX_VELOCITY 106
-
-#define SERIAL_CDM_WRITE_ROLL_TOTAL_GAIN 107
-#define SERIAL_CDM_WRITE_ROLL_CONSTANT_GAIN 108
-#define SERIAL_CDM_WRITE_ROLL_RAMP_GAIN 109
-#define SERIAL_CDM_WRITE_ROLL_SQUARE_GAIN 110
-#define SERIAL_CDM_WRITE_ROLL_SINE_GAIN 111
-#define SERIAL_CDM_WRITE_ROLL_TRIANGLE_GAIN 112
-#define SERIAL_CDM_WRITE_ROLL_SAWTOOTH_DOWN_GAIN 113
-#define SERIAL_CDM_WRITE_ROLL_SAWTOOTH_UP_GAIN 114
-#define SERIAL_CDM_WRITE_ROLL_SPRING_GAIN 115
-#define SERIAL_CDM_WRITE_ROLL_DAMPER_GAIN 116
-#define SERIAL_CDM_WRITE_ROLL_INERTIA_GAIN 117
-#define SERIAL_CDM_WRITE_ROLL_FRICTION_GAIN 118
-
-// write pitch
-#define SERIAL_CDM_WRITE_PITCH_FORCE_MAX 119
-#define SERIAL_CDM_WRITE_PITCH_PWM_MIN 120
-#define SERIAL_CDM_WRITE_PITCH_PWM_MAX 121
-
-#define SERIAL_CDM_WRITE_PITCH_FRICTION_MAX_POSITION_CHANGE 122
-#define SERIAL_CDM_WRITE_PITCH_INERTIA_MAX_ACCELERATION 123
-#define SERIAL_CDM_WRITE_PITCH_DAMPER_MAX_VELOCITY 124
-
-#define SERIAL_CDM_WRITE_PITCH_TOTAL_GAIN 125
-#define SERIAL_CDM_WRITE_PITCH_CONSTANT_GAIN 126
-#define SERIAL_CDM_WRITE_PITCH_RAMP_GAIN 127
-#define SERIAL_CDM_WRITE_PITCH_SQUARE_GAIN 128
-#define SERIAL_CDM_WRITE_PITCH_SINE_GAIN 129
-#define SERIAL_CDM_WRITE_PITCH_TRIANGLE_GAIN 130
-#define SERIAL_CDM_WRITE_PITCH_SAWTOOTH_DOWN_GAIN 131
-#define SERIAL_CDM_WRITE_PITCH_SAWTOOTH_UP_GAIN 132
-#define SERIAL_CDM_WRITE_PITCH_SPRING_GAIN 133
-#define SERIAL_CDM_WRITE_PITCH_DAMPER_GAIN 134
-#define SERIAL_CDM_WRITE_PITCH_INERTIA_GAIN 135
-#define SERIAL_CDM_WRITE_PITCH_FRICTION_GAIN 136
-
-// eeprom
-#define SERIAL_CMD_WRITE_DATA_EEPROM 250
-#define SERIAL_CMD_WRITE_EEPROM_CLEAR 251
-
-#define EEPROM_DATA_AVAILABLE_INDEX 0     // eeprom address to indicate data available
-                                          // space between reserved
-#define EEPROM_DATA_INDEX 10              // eeprom start address for data
+#define EEPROM_DATA_INDEX 25              // eeprom start address for data (not used)
 
 // Default vaules for gains and effect if nothing saved into eeprom
 #define default_gain 100
-#define default_friction_gain 25
+#define default_friction_gain 100
+#define default_spring_gain 40
 
-#define default_frictionMaxPositionChange_ROLL 125;
-#define default_inertiaMaxAcceleration_ROLL 100;
-#define default_damperMaxVelocity_ROLL 350;
+#define default_frictionMaxPositionChange_ROLL 40
+#define default_inertiaMaxAcceleration_ROLL 30
+#define default_damperMaxVelocity_ROLL 15
 
-#define default_frictionMaxPositionChange_PITCH 125;
-#define default_inertiaMaxAcceleration_PITCH 100;
-#define default_damperMaxVelocity_PITCH 350;
+#define default_frictionMaxPositionChange_PITCH 60
+#define default_inertiaMaxAcceleration_PITCH 40
+#define default_damperMaxVelocity_PITCH 25
 
-#define default_PITCH_FORCE_MAX 10000;
-#define default_PITCH_PWM_MAX 170;
-#define default_PITCH_PWM_MIN 40;
+// Speed limit settings
+#define ENABLE_SPEED_LIMITER // To remove function
+#define MAX_VELOCITY_X 15
+#define MAX_VELOCITY_Y 25
+#define VELOCITY_HYSTERESIS 5 // max velocity - this value to reenable 
+#define DEFAULT_VELOCITY_PCNT 60 // default percentage of MAX velocity
 
-#define default_ROLL_FORCE_MAX 10000;
-#define default_ROLL_PWM_MAX 170;
-#define default_ROLL_PWM_MIN 40;
+#define default_PITCH_FORCE_MAX 10000
+#define default_PITCH_PWM_MAX 255
+#define default_PITCH_PWM_MIN 43
 
+#define default_ROLL_FORCE_MAX 10000
+#define default_ROLL_PWM_MAX 255
+#define default_ROLL_PWM_MIN 37
+
+// Limit range from the absolute max found from calib to assure full range is given
+#define RANGE_LIMITER_X 0 
+#define RANGE_LIMITER_Y 20 
+
+// Force to use to *gently* hold the yoke to the endstop if a force is pushing it there
+// If using 0 as force, we can get bouncing towards the endstop (if hands off)
+// This force should be just enough to get the motor working, to high and there will be heat!!!
+// Range is 0-10000
+#define ENDSTOP_HOLD_FORCE 300
+
+// SOFT LOCK Settings
+// Roll AXIS (NOT USED!)
+
+#define SOFT_LOCK_X 50 // Encoder steps away from physical endstop
+#define SOFT_LOCK_FORCE_X 10000
+#define SOFT_LOCK_BUFFER_X 40
+
+// Pitch AXIS (USED!)
+#define SOFT_LOCK_Y 500 // Encoder steps away from physical endstop
+#define SOFT_LOCK_FORCE_Y 10000
+#define SOFT_LOCK_BUFFER_Y 80
 
 /******************************************
    Calibration Constants
 *******************************************/
-#define CALIBRATION_MAX_SPEED 130;                        // Maximum speed
-#define CALIBRATION_AXIS_MOVEMENT_TIMEOUT 4000;           // Timeout of 4 seconds for no movement
-#define CALIBRATION_TIMEOUT 20000;                        // Timeout of 20 seconds for calibration
-#define CALIBRATION_SPEED_INCREMENT 10;                   // the speed is increased until asix movement, this is added to speed then move´ment indicates 
-#define CALIBRATION_WHILE_DELAY 20;                        // waitdelay inside while of movement to give Arduino time. Change will change speed!
-#define CALIBRATION_WHILE_DELAY_MOTOR_STOPS 30;           // waitdelay when motor stops to give him time to stops
-#define CALIBRATION_DELAY_MOVE_OUT_OF_ENDSTOP 100;        // If asix is on endstop on start od´f calibration it will move out of and wait shot before continue
+#define CALIBRATION_MOTOR_DELAY_X 600
+#define CALIBRATION_MOTOR_DELAY_Y 250
+#define CALIBRATION_MAX_PWM 58                        
+#define CALIBRATION_MAX_INCREMENT_Y 35                // Maximum positional delta change per loop (WHILE_DELAY)
+#define CALIBRATION_MAX_INCREMENT_X 45                // Maximum positional delta change per loop (WHILE_DELAY)
+#define CALIBRATION_AXIS_MOVEMENT_TIMEOUT 2000           // Timeout of 4 seconds for no movement
+#define CALIBRATION_TIMEOUT 20000                        // Timeout of 20 seconds for calibration
+#define CALIBRATION_SPEED_INCREMENT 2                   // the speed is increased until movement, this is added to speed then movement indicates 
+#define CALIBRATION_WHILE_DELAY 15                        // waitdelay inside while of movement to give Arduino time. Change will change speed!
+#define CALIBRATION_WHILE_DELAY_MOTOR_STOPS 30           // waitdelay when motor stops to give him time to stops
+#define CALIBRATION_DELAY_MOVE_OUT_OF_ENDSTOP 100        // If asix is on endstop on start od´f calibration it will move out of and wait shot before continue
 
-/******************************************
-   Beep
-*******************************************/
-#define BEEP_SHORT_TONE 200
-#define BEEP_LONG_TONE 600
-#define BEEP_CODE_FREQUENCY 1000
-#define BEEP_CODE_DELAY 500
-#define BEEP_CODE_COUNT 3 //start with 0
+// if defined will catch digitalWritefast() calls that are not fast
+// #define THROW_ERROR_IF_NOT_FAST 
 
 #endif

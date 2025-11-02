@@ -16,6 +16,9 @@
   You should have received a copy of the GNU Lesser General Public
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+  2025 Edited by K. Jörg, @Barsk
+  https://github.com/barsk/Arduino_FFB_Yoke  
 */
 
 #ifndef JOYSTICK_h
@@ -70,7 +73,8 @@ struct Gains{
 	byte damperGain        = FORCE_FEEDBACK_MAXGAIN;
 	byte inertiaGain       = FORCE_FEEDBACK_MAXGAIN;
 	byte frictionGain      = FORCE_FEEDBACK_MAXGAIN;
-	byte defaultSpringGain = 0;
+	byte defaultSpringGain = 40; // A reduced default centering force, only active on non-FFB games
+	// byte speedLimitPcnt = 100; // Percentage of axis max speed limit
 };
 
 struct EffectParams{
@@ -130,13 +134,74 @@ private:
 	uint8_t                  _hidReportId;
 	uint8_t                  _hidReportSize; 
 	
-	bool 					_serialPrintForces = false;		// print separat forces to serial plotter?
+	// print separat forces to serial plotter?
+	// #define 				 _serialPrintForces  1		
+// bool 					_serialPrintForces = false;		// print separat forces to serial plotter?	
 
 	//force feedback gain
-	Gains m_gains[FFB_AXIS_COUNT];
+	// Gains m_gains[FFB_AXIS_COUNT];
+	Gains* m_gains;
 
 	//force feedback effect params
 	EffectParams* m_effect_params;
+
+	
+// 	typedef struct {
+//     volatile uint8_t state; // Current state of the effect
+//     uint8_t effectType; // Type of effect
+//     int8_t offset; // Offset for the effect
+//     uint8_t gain; // Gain value for the effect
+//     int16_t attackLevel; // Attack level for the effect
+//     int16_t fadeLevel; // Fade level for the effect
+//     int16_t magnitude; // Magnitude of the effect
+//     uint8_t enableAxis; // Axis enabling bits (0=X, 1=Y, 2=Direction)
+//     uint8_t direction[FFB_AXIS_COUNT]; // Direction angles for force feedback
+//     TEffectCondition conditions[FFB_AXIS_COUNT]; // Conditions for the effect on each axis
+
+//     uint16_t phase; // Current phase of the effect (0..255)
+//     int16_t startMagnitude; // Starting magnitude for ramp or effects
+//     int16_t endMagnitude; // Ending magnitude for ramp or effects
+//     uint16_t period; // Period of the effect (0..32767 ms)
+//     uint16_t duration; // Total duration of the effect
+//     uint16_t fadeTime; // Fade time for the effect
+//     uint16_t attackTime; // Attack time for the effect
+//     uint16_t elapsedTime; // Elapsed time since the effect started
+//     uint16_t totalDuration; // Total duration of the effect including fade and attack times
+//     uint16_t startDelay; // Delay before starting the effect
+//     uint64_t startTime; // Timestamp when the effect started
+//     uint8_t loopCount; // Number of times to loop the effect
+//     uint8_t conditionReportsCount; // Count of condition reports for the effect
+// } TEffectState;
+
+	//default SPRING effect, for non FFB applications
+	// TEffectCondition defaultSpringCond = {0};
+	// Create a default SPRING efffect, if no other effects active
+	// TEffectState defaultSpringEffect = {
+	// 	MEFFECTSTATE_PLAYING,
+	// 	USB_EFFECT_SPRING,
+	// 	0,
+	// 	100,
+	// 	0,
+	// 	0,
+	// 	4000,
+	// 	 DIRECTION_ENABLE,
+	// 	 {0},
+	// 	 {0},
+	// 	 0,
+	// 	 0,
+	// 	0,
+	// 	0,
+	// 	 0,
+	// 	0,
+	// 	 0,
+	// 	 0,
+	// 	USB_DURATION_INFINITE,
+	// 	0,
+	// 	 0,
+	// 	0,
+	// 	2};
+	
+
 
 	///force calculate funtion
 	float NormalizeRange(int16_t x, int16_t maxValue);
@@ -166,12 +231,13 @@ public:
 		uint8_t hatSwitchCount = JOYSTICK_DEFAULT_HATSWITCH_COUNT,
 		bool includeXAxis = true,
 		bool includeYAxis = true,
-		bool includeZAxis = true,
-		bool includeRxAxis = true,
-		bool includeRyAxis = true,
-		bool includeRzAxis = true,
-		bool includeRudder = true,
-		bool includeThrottle = true);
+		bool includeZAxis = true
+		// bool includeRxAxis = true,
+		// bool includeRyAxis = true,
+		// bool includeRzAxis = true,
+		// bool includeRudder = true,
+		// bool includeThrottle = true
+	);
 
 	void begin(bool initAutoSendState = true);
 	void end();
@@ -191,43 +257,43 @@ public:
 		_zAxisMinimum = minimum;
 		_zAxisMaximum = maximum;
 	}
-	inline void setRxAxisRange(int16_t minimum, int16_t maximum)
-	{
-		_rxAxisMinimum = minimum;
-		_rxAxisMaximum = maximum;
-	}
-	inline void setRyAxisRange(int16_t minimum, int16_t maximum)
-	{
-		_ryAxisMinimum = minimum;
-		_ryAxisMaximum = maximum;
-	}
-	inline void setRzAxisRange(int16_t minimum, int16_t maximum)
-	{
-		_rzAxisMinimum = minimum;
-		_rzAxisMaximum = maximum;
-	}
-	inline void setRudderRange(int16_t minimum, int16_t maximum)
-	{
-		_rudderMinimum = minimum;
-		_rudderMaximum = maximum;
-	}
-	inline void setThrottleRange(int16_t minimum, int16_t maximum)
-	{
-		_throttleMinimum = minimum;
-		_throttleMaximum = maximum;
-	}
+	// inline void setRxAxisRange(int16_t minimum, int16_t maximum)
+	// {
+	// 	_rxAxisMinimum = minimum;
+	// 	_rxAxisMaximum = maximum;
+	// }
+	// inline void setRyAxisRange(int16_t minimum, int16_t maximum)
+	// {
+	// 	_ryAxisMinimum = minimum;
+	// 	_ryAxisMaximum = maximum;
+	// }
+	// inline void setRzAxisRange(int16_t minimum, int16_t maximum)
+	// {
+	// 	_rzAxisMinimum = minimum;
+	// 	_rzAxisMaximum = maximum;
+	// }
+	// inline void setRudderRange(int16_t minimum, int16_t maximum)
+	// {
+	// 	_rudderMinimum = minimum;
+	// 	_rudderMaximum = maximum;
+	// }
+	// inline void setThrottleRange(int16_t minimum, int16_t maximum)
+	// {
+	// 	_throttleMinimum = minimum;
+	// 	_throttleMaximum = maximum;
+	// }
 
 	// Set Axis Values
 	void setXAxis(int16_t value);
 	void setYAxis(int16_t value);
 	void setZAxis(int16_t value);
-	void setRxAxis(int16_t value);
-	void setRyAxis(int16_t value);
-	void setRzAxis(int16_t value);
+	// void setRxAxis(int16_t value);
+	// void setRyAxis(int16_t value);
+	// void setRzAxis(int16_t value);
 
-	// Set Simuation Values
-	void setRudder(int16_t value);
-	void setThrottle(int16_t value);
+	// // Set Simuation Values
+	// void setRudder(int16_t value);
+	// void setThrottle(int16_t value);
 
 	void setButton(uint8_t button, uint8_t value);
 	void pressButton(uint8_t button);
@@ -235,6 +301,9 @@ public:
 	void setHatSwitch(int8_t hatSwitch, int16_t value);
 
 	void sendState();
+
+	// get USB PID data
+	void getUSBPID();
 
 	//force feedback Interfaces
 	void getForce(int16_t* forces);
@@ -245,26 +314,27 @@ public:
     }
 
 	int8_t setGains(Gains* _gains){
-	    if(_gains != nullptr){
-            memcpy(m_gains, _gains, sizeof(m_gains));
+	    // if(_gains != nullptr){
+            // memcpy(m_gains, _gains, sizeof(m_gains));
+			m_gains = _gains;
 	        return 0;
-	    }
-	    return -1;
+	    // }
+	    // return -1;
 	};
 
 	//set effect params funtions
 	int8_t setEffectParams(EffectParams* _effect_params){
-	    if(_effect_params != nullptr){
+	    // if(_effect_params != nullptr){
 	        m_effect_params = _effect_params;
 	        return 0;
-	    }
-	    return -1;
+	    // }
+	    // return -1;
 	};
 	
 	// debug
-	void startSerialPrintForces(){ _serialPrintForces=true; }
-	void stopSerialPrintForces(){ _serialPrintForces=false; }
-	bool getSerialPrintForces() { return _serialPrintForces; }
+	// void startSerialPrintForces(){ _serialPrintForces=true; }
+	// void stopSerialPrintForces(){ _serialPrintForces=false; }
+	// bool getSerialPrintForces() { return _serialPrintForces; }
 };
 
 #endif // !defined(_USING_DYNAMIC_HID)

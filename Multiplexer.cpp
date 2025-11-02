@@ -3,9 +3,11 @@
  http://www.gagagu.de
  https://github.com/gagagu/Arduino_FFB_Yoke
  https://www.youtube.com/@gagagu01
-*/
 
-/*
+2025 Edited by K. Jörg, @Barsk
+https://github.com/barsk/Arduino_FFB_Yoke
+
+
   This repository contains code for Arduino projects. 
   The code is provided "as is," without warranty of any kind, either express or implied, 
   including but not limited to the warranties of merchantability, 
@@ -43,236 +45,106 @@
 Multiplexer::Multiplexer(Joystick_* joystickPtr) {
     this->joystick = joystickPtr;
 
-    #ifdef ARDUINO_PRO_MICRO
-      mux_yoke.begin(MUX_YOKE_OUT, MUX_YOKE_PL, MUX_YOKE_CLK);
-      mux_int.begin(MUX_INT_OUT, MUX_INT_PL, MUX_INT_CLK);
-    #endif
+    mux_yoke.begin();//MUX_YOKE_OUT, MUX_YOKE_PL, MUX_YOKE_CLK);
+    // mux_int.begin(MUX_INT_OUT, MUX_INT_PL, MUX_INT_CLK);
+
 }
 
-// Method to read the multiplexer and update end switches
-void Multiplexer::ReadMux() {
-  #ifndef ARDUINO_PRO_MICRO
-    iYokeButtonPinStates = 0;
-    iSensorPinStates = 0;
 
-    // for every 16 imput lines of a mutiplexer
-    for (byte x = 0; x < 16; x++) {
-      for (int i = 0; i < 4; i++) {
-          PORTF = (x & (1 << i)) ? (PORTF | (1 << (7 - i))) : (PORTF & ~(1 << (7 - i)));
-      }
-
-      // enable mux 1
-      //PORTC = PORTC & B10111111;  // Digital Pin 5 - PortC6
-      PORTC &= ~B01000000; // Digital Pin 5 - PortC6
-
-      // wait for capacitors of mux to react
-      delayMicroseconds(1);
-
-      // read value
-      iYokeButtonPinStates |= digitalRead(MUX_SIGNAL_YOKE) << x;
-
-      // disable mux1
-      PORTC |= B00100000; // Digital Pin 5 - PortC6
-
-      // enable mux 2
-      PORTD &= ~B00010000; // Digital Pin 4 - PortD4
-
-      // wait for capacitors of mux to react
-      delayMicroseconds(1);
-
-      // Read value from the second multiplexer
-      iSensorPinStates |= digitalRead(MUX_SIGNAL_INPUT) << x;
-
-      // disblae mux 2
-      PORTD |= B00010000; // Digital Pin 4 - PortD4
-
-    }  //for
-
-    //Check end switches
-    blEndSwitchRollLeft=(iSensorPinStates & (1 << ADJ_ENDSWITCH_ROLL_LEFT))==0;
-    blEndSwitchRollRight=(iSensorPinStates & (1 << ADJ_ENDSWITCH_ROLL_RIGHT))==0;
-    blEndSwitchPitchUp=(iSensorPinStates & (1 << ADJ_ENDSWITCH_PITCH_UP))==0;
-    blEndSwitchPitchDown=(iSensorPinStates & (1 << ADJ_ENDSWITCH_PITCH_DOWN))==0;
-    blCalibrationButtonPushed=(iSensorPinStates & (1 << ADJ_CALIBRATION_BUTTON))!=0;
-    blMotorPower=(iSensorPinStates & (1 << ADJ_MOTOR_POWER))!=0;
-  #else
-    mux_int.update();
-    blEndSwitchPitchDown=!mux_int.read(0);
-    blEndSwitchPitchUp=!mux_int.read(1);
-    blEndSwitchRollLeft=!mux_int.read(2);
-    blEndSwitchRollRight=!mux_int.read(3);
-    blCalibrationButtonPushed=mux_int.read(4);
-    blMotorPower=mux_int.read(5);
-  #endif  
-
-  #ifdef SERIAL_DEBUG
-    Serial.print("Calib.: ");
-    Serial.print(blCalibrationButtonPushed);
-    Serial.print(", Power: ");
-    Serial.print(blMotorPower);
-    Serial.print(", Down: ");
-    Serial.print(blEndSwitchPitchDown); 
-    Serial.print(", Up: ");
-    Serial.print(blEndSwitchPitchUp); 
-    Serial.print(", Left: ");
-    Serial.print(blEndSwitchRollLeft); 
-    Serial.print(", Right: ");
-    Serial.print(blEndSwitchRollRight);     
-  #endif  
-}
-
-bool Multiplexer::EndSwitchRollLeft(){
-  return blEndSwitchRollLeft;
-}
-
-bool Multiplexer::EndSwitchRollRight(){
-  return blEndSwitchRollRight;
-}
-
-bool Multiplexer::EndSwitchPitchUp(){
-  return blEndSwitchPitchUp;
-}
-
-bool Multiplexer::EndSwitchPitchDown(){
-  return blEndSwitchPitchDown;
-}
-
-bool Multiplexer::CalibrationButtonPushed(){
-  return blCalibrationButtonPushed;
-}
-
-bool Multiplexer::MotorPower(){
-  return blMotorPower;
-}
-
-uint16_t Multiplexer::GetYokeButtonPinStates(){
-  return iYokeButtonPinStates;
-}
-
-uint16_t Multiplexer::GetSensorPinStates(){
-  return iSensorPinStates;
+uint16_t Multiplexer::getYokeButtonPinStates(){
+  return mux_yoke.get2MuxPinStates();
 }
 
 // Method to update the joystick buttons based on multiplexer input
-void Multiplexer::UpdateJoystickButtons() {
-  bool data =0;
+void Multiplexer::updateJoystickButtons() {
+mux_yoke.update();
 
-  #ifndef ARDUINO_PRO_MICRO
-    #ifdef SERIAL_DEBUG
-   
-      for (byte channel = 4; channel < 16; channel++) {
-          Serial.print(", Ch.");
-          Serial.print(channel);
-          Serial.print(": ");
-          Serial.print((iYokeButtonPinStates >> channel) & 1);
+#ifdef SERIAL_DEBUG
+      
+      Serial.print("  But: ");
+      for (uint8_t i = 4, n = mux_yoke.getLength(); i < n; i++) {
+        byte data = !mux_yoke.read(i);
+        
+        Serial.print(i);
+        Serial.print("|");
+        Serial.print(data);
+        Serial.print(" ");
       }
-    #endif
+      Serial.print(" Hat_Up:");
+      Serial.print(!mux_yoke.read(2));
+      Serial.print(", Hat_Dn:");
+      Serial.print(!mux_yoke.read(0));
+      Serial.print(", Hat_L:");
+      Serial.print(!mux_yoke.read(1));
+      Serial.print(", Hat_R:");
+      Serial.print(!mux_yoke.read(3));
+#else
+ 
+  uint16_t reading = mux_yoke.get2MuxPinStates();
 
-    // Bit-Shift um 12 für Hat-Switch-Position
-    uint16_t hatSwitchState = iYokeButtonPinStates << 12;
+  // If any of the switches changed, due to noise or pressing:
+  if (reading != lastYokeButtonPinState)
+  {
+    // reset the debouncing timer
+    lastDebounceTime = millis();
+  }
 
-    // Setze die Hat-Switch-Position
-    switch (hatSwitchState) {
-      case 0B0000000000000000:
+  if ((millis() - lastDebounceTime) > DEBOUNCE_MS)
+  {
+    // whatever the reading is at, it's been there for longer than the debounce
+    // delay, so take it as the actual current state:
+
+    // if the button state has changed:
+    if (reading != yokeButtonPinState)
+    {
+      yokeButtonPinState = reading; // remember state
+      byte hatSwitchState = 0;
+      hatSwitchState |= (!mux_yoke.read(0) << 0);
+      hatSwitchState |= (!mux_yoke.read(1) << 1);
+      hatSwitchState |= (!mux_yoke.read(2) << 2);
+      hatSwitchState |= (!mux_yoke.read(3) << 3);
+
+      switch (hatSwitchState)
+      {
+      case 0B00000000:
         joystick->setHatSwitch(0, -1); // no direction
         break;
-      case 0B0100000000000000:
-        joystick->setHatSwitch(0, 0); // up
+      case 0B00000001:
+        joystick->setHatSwitch(0, 180); // up
         break;
-      case 0B0101000000000000:
-        joystick->setHatSwitch(0, 45); // up right
+      case 0B00000011:
+        joystick->setHatSwitch(0, 225); // up right
         break;
-      case 0B0001000000000000:
-        joystick->setHatSwitch(0, 90); // right
+      case 0B00000010:
+        joystick->setHatSwitch(0, 270); // right
         break;
-      case 0B0011000000000000:
-        joystick->setHatSwitch(0, 135); // down right
+      case 0B00000110:
+        joystick->setHatSwitch(0, 315); // down right
         break;
-      case 0B0010000000000000:
-        joystick->setHatSwitch(0, 180); // down
+      case 0B00000100:
+        joystick->setHatSwitch(0, 0); // down
         break;
-      case 0B1010000000000000:
-        joystick->setHatSwitch(0, 225); // down left
+      case 0B00001100:
+        joystick->setHatSwitch(0, 45); // down left
         break;
-      case 0B1000000000000000:
-        joystick->setHatSwitch(0, 270); // left
+      case 0B00001000:
+        joystick->setHatSwitch(0, 90); // left
         break;
-      case 0B1100000000000000:
-        joystick->setHatSwitch(0, 315); // up left
+      case 0B00001001:
+        joystick->setHatSwitch(0, 135); // up left
         break;
       default:
         break; // no change
-    }
-
-    // Lese Button-Zustände vom Multiplexer
-    for (byte channel = 4; channel < 16; channel++) {
-      joystick->setButton(channel - 4, (iYokeButtonPinStates >> channel) & 1);
-    }
-  #else
-  
-    mux_yoke.update();
-
-    #ifdef SERIAL_DEBUG
-      Serial.print(", H. Up: ");
-      Serial.print(!mux_yoke.read(0));
-      Serial.print(", H. Dn: ");
-      Serial.print(!mux_yoke.read(2));
-      Serial.print(", H. Lf: ");
-      Serial.print(!mux_yoke.read(3));
-      Serial.print(", H. Rg: ");
-      Serial.print(!mux_yoke.read(1));
-
-
-      for(uint8_t i=4, n=mux_yoke.getLength(); i < n ; i++){
-          data = !mux_yoke.read(i);
-          Serial.print(", Pin ");
-          Serial.print(i);
-          Serial.print(": ");
-          Serial.print(data);
-      }
-    #else
-
-    byte hatSwitchState=0;
-    hatSwitchState |= (!mux_yoke.read(0) << 0);
-    hatSwitchState |= (!mux_yoke.read(1) << 1);
-    hatSwitchState |= (!mux_yoke.read(2) << 2);
-    hatSwitchState |= (!mux_yoke.read(3) << 3);
-
-    switch (hatSwitchState) {
-        case 0B00000000:
-          joystick->setHatSwitch(0, -1); // no direction
-          break;
-        case 0B00000001:
-          joystick->setHatSwitch(0, 0); // up
-          break;
-        case 0B00000011:
-          joystick->setHatSwitch(0, 45); // up right
-          break;
-        case 0B00000010:
-          joystick->setHatSwitch(0, 90); // right
-          break;
-        case 0B00000110:
-          joystick->setHatSwitch(0, 135); // down right
-          break;
-        case 0B00000100:
-          joystick->setHatSwitch(0, 180); // down
-          break;
-        case 0B00001100:
-          joystick->setHatSwitch(0, 225); // down left
-          break;
-        case 0B00001000:
-          joystick->setHatSwitch(0, 270); // left
-          break;
-        case 0B00001001:
-          joystick->setHatSwitch(0, 315); // up left
-          break;
-        default:
-          break; // no change
       }
 
-      for (byte channel = 4; channel < 16; channel++) {
+      for (byte channel = 4; channel < 16; channel++)
+      {
         joystick->setButton(channel - 4, !mux_yoke.read(channel));
       }
-    #endif
-  #endif
+    }
+  }
+  // save the reading. Next time through the loop, it'll be the lastButtonState:
+  lastYokeButtonPinState = reading;
+
+#endif
 }

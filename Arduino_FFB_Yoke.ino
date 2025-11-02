@@ -1,15 +1,14 @@
-/*
-  Version 2.0.0
-*/
-
 /* 
  Created by A.Eckers aka Gagagu
  http://www.gagagu.de
  https://github.com/gagagu/Arduino_FFB_Yoke
  https://www.youtube.com/@gagagu01
-*/
 
-/*
+
+2025 Edited by K. Jörg, @Barsk
+https://github.com/barsk/Arduino_FFB_Yoke
+
+
   This repository contains code for Arduino projects. 
   The code is provided "as is," without warranty of any kind, either express or implied, 
   including but not limited to the warranties of merchantability, 
@@ -48,198 +47,193 @@
   Includes
 **************************/
 #include "src/Joystick.h"  // Joystick and FFB Library (many changes made) by https://github.com/jmriego/Fino
-#include <Encoder.h>       // Encoder Library https://github.com/PaulStoffregen/Encoder
+#include <AS5600.h>          // Magnetic encoder library
+#include <TCA9548.h>         // I2C channel multiplexer, the roll and pitch magnetic encoders goes through here
 #include <EEPROM.h>        // https://docs.arduino.cc/learn/built-in-libraries/eeprom
 
 #include "defines.h"
 #include "Multiplexer.h"
-#include "AxisCalibration.h"  // Include the header file
+#include "Axis.h"  // Include the header file
 #include "BeepManager.h"
+#include "Communication.h"
 
 /*************************
   Variables
-**************************/
-int16_t JOYSTICK_minX = -256;         // initial Joystick axis resolution
-int16_t JOYSTICK_maxX = 256;
-int16_t JOYSTICK_minY = -256;
-int16_t JOYSTICK_maxY = 256;
-
-unsigned long nextJoystickMillis = 0;   // count millis for next joystick update
-unsigned long nextEffectsMillis = 0;    // count millis for next Effect update
+// **************************/
+unsigned long nextUpdateMillis = 0;    // count millis for next mux update
 unsigned long currentMillis;            // millis for the current loop
 
-bool blSerialDebug = false;             // serial debug mode
-bool blCalibration = true;              // start flag
-byte bSerialIndex = 0;                  // global index for serial communication
+byte maxVelocityPcnt = 60;             // Percentage of axis max velocity allowed
 
 int16_t forces[MEM_AXES] = { 0, 0 };        // stored forces
 Gains gains[FFB_AXIS_COUNT];                // stored gain parameters
 EffectParams effects[MEM_AXES];             // stored effect parameters
 
 int16_t adjForceMax[MEM_AXES] = { 0, 0 };  // stored max adjusted force
-byte adjPwmMin[MEM_AXES] = { 0, 0 };       // stored start pwm (motor power) on force != 0
-byte adjPwmMax[MEM_AXES] = { 0, 0 };       // stored max pwm (motor power) on max force
+byte adjPwmMin[MEM_AXES] = { default_ROLL_PWM_MIN, default_PITCH_PWM_MIN };       // stored start pwm (motor power) on force != 0
 
-Encoder counterRoll(ROLL_ENC_A,ROLL_ENC_B );   // init encoder library for roll ir sensor
-Encoder counterPitch(PITCH_ENC_A,PITCH_ENC_B);  // init encoder library for pitch ir sensor
+// TCA9548 I2C multiplexer (actually a switch)
+TCA9548 i2c_mux(0x70);
 
-BeepManager beepManager(BUZZER_PIN);  // Instanz der BeepManager Klasse
+// Magnetic rotary encoders
+AS5600 rollEncoder;  
+AS5600 pitchEncoder;
+byte ROLL_CHANNEL = 0;
+byte PITCH_CHANNEL = 1;
 
-// variables for Speed calculation
-byte roll_speed = 0;
-byte pitch_speed = 0;
+BeepManager beepManager(BUZZER_PIN);  // Instanciate the BeepManager
 
 // variables for calculation
 unsigned long lastEffectsUpdate = 0;  // count millis for next effect calculation
-int16_t lastX;                        // X value from last loop
-int16_t lastY;                        // Y value from last loop
-int16_t lastVelX;                     // Velocity X value from last loop
-int16_t lastVelY;                     // Velocity y value from last loop
-int16_t lastAccelX;                   // Acceleration X value from last loop
-int16_t lastAccelY;                   // Acceleration X value from last loop
-int32_t counterRollValue = 0;
-int32_t counterPitchValue = 0;
-bool isCalibrationPressed = false;   // flag for calibration button
+
+typedef struct {
+int16_t lastPos;                        // X value from last loop
+int16_t lastVel;                     // Velocity X value from last loop
+int16_t lastAccel;                   // Acceleration X value from last loop
+} PhysicsData;
+
+PhysicsData physicsData[MEM_AXES];
+int32_t encoderPos[MEM_AXES];
+// float angularSpeed[MEM_AXES];
 
 Joystick_ Joystick(            // define Joystick parameters
-  JOYSTICK_DEFAULT_REPORT_ID,  // ID defined in Joystick.h
+  JOYSTICK_DEFAULT_REPORT_ID,  
   JOYSTICK_TYPE_JOYSTICK,      // type Joystick
   12, 1,                       // Button Count, Hat Switch Count
-  true, true, false,           // X, Y, Z
-  false, false, false,         // Rx, Ry, Rz
-  false, false);               // rudder, throttle
+  true, true, false);           // X, Y, Z
+  // false, false, false,         // Rx, Ry, Rz
+  // false, false);               // rudder, throttle
 
 Multiplexer mux(&Joystick);   // class for mutiplexers
 
-Axis rollAxis(ROLL_L_PWM, ROLL_R_PWM, true, &counterRoll, &mux, &beepManager);        // Roll Axis class
-Axis pitchAxis(PITCH_U_PWM, PITCH_D_PWM, false, &counterPitch, &mux, &beepManager);   // pitch axis class
+Axis axis[MEM_AXES] ={
+  Axis(ROLL_L_PWM, ROLL_R_PWM, true, &rollEncoder, ROLL_CHANNEL, &i2c_mux, &mux, &beepManager, adjPwmMin[MEM_ROLL]),
+  Axis(PITCH_U_PWM, PITCH_D_PWM, false, &pitchEncoder, PITCH_CHANNEL, &i2c_mux, &mux, &beepManager, adjPwmMin[MEM_PITCH])
+};
+
+Communication comm(&beepManager, gains, adjPwmMin, axis, maxVelocityPcnt);
 
 /********************************
      initial setup
 *******************************/
 void setup() {
-  ArduinoSetup();   // setup for Arduino itself (pins)
-  SetupJoystick();  // Joystick setup
-
+  arduinoSetup();   // setup for Arduino itself (pins)
   Serial.begin(SERIAL_BAUD);  // init serial
+  Wire.begin(); // I2C Wire communication
 
-  // if serial debig, no motors enabled
+  i2c_mux.begin();
+  i2c_mux.selectChannel(ROLL_CHANNEL);
+  rollEncoder.begin(); 
+  rollEncoder.setDirection(AS5600_CLOCK_WISE);  
+
+  i2c_mux.selectChannel(PITCH_CHANNEL);
+  pitchEncoder.begin(); 
+  pitchEncoder.setDirection(AS5600_CLOCK_WISE);  
+
+  // if serial debug, no motors enabled
 #ifndef SERIAL_DEBUG
-   EnableMotors();             // enable motors
+  if (digitalReadFast(CALIB_BUTTON_PIN) ||  !isEepromDataValid()) {
+    fullCalibration();
+  } else {
+    readEEPromCalib();
+  }
+
+  // readEncoderPos();
+  setupJoystick();  // Joystick setup
+  Joystick.begin(false);
+  axis[MEM_ROLL].setMAxVelocityFromPcnt(maxVelocityPcnt);
+  axis[MEM_PITCH].setMAxVelocityFromPcnt(maxVelocityPcnt);
 #endif
-
-   delay(1000);
-   beepManager.SystemStart();  // Systemstart-Sound
 }  //setup
-
 
 /***************************
       main loop
 ****************************/
 void loop() {
-
-// if serial debug mode than only display pins, mux and counters
+  // if serial debug mode than only display pins, mux and counters
 #ifdef SERIAL_DEBUG
-  mux.ReadMux();                // read ir sensors
-  mux.UpdateJoystickButtons();  // read yoke buttons
-  Serial.print(", Roll:");      
-  Serial.print(counterRollValue);
-  Serial.print(", Pitch:");
-  Serial.print(counterPitchValue);  
-  if calibration button is pressed than reset counters
-  if (mux.CalibrationButtonPushed()) {  
-    counterRoll.readAndReset(); 
-    counterPitch.readAndReset();
-  }
-  Serial.println("");
-  delay(30);
+
+  readEncoderPos();
+
+  Serial.print(F("IR_L:"));
+  Serial.print(!digitalReadFast(IR_ROLL_LEFT));
+  Serial.print(F(", IR_R:"));
+  Serial.print(!digitalReadFast(IR_ROLL_RIGHT));
+  Serial.print(F(", IR_DN:"));
+  Serial.print(!digitalRead(IR_PITCH_DOWN));
+  Serial.print(F(", IR_UP:"));
+  Serial.print(!digitalRead(IR_PITCH_UP));
+
+  Serial.print(F(", X-axis:"));
+  Serial.print(encoderPos[MEM_ROLL]); //Serial.print(F(":")); Serial.print(axis[MEM_ROLL].config.iMin);
+  Serial.print(F(", Y-axis:"));
+  Serial.print(encoderPos[MEM_PITCH]); //Serial.print(F(":")); Serial.print(axis[MEM_PITCH].config.iMin + SOFT_LOCK_Y);
+
+  mux.updateJoystickButtons();              // get Joystick buttons
+
+  Serial.println();
+  delay(250);
 #else
-// else normal yoke mode
+  currentMillis = millis();
 
-  currentMillis = millis();   // number of milliseconds passed since the Arduino board began running the current program
+  if (currentMillis >= nextUpdateMillis) {
+    comm.serialEvent();
 
-  counterRollValue=counterRoll.read();
-  counterPitchValue=counterPitch.read();
-  mux.ReadMux();              // Read values of buttons and end switch sensors (except yoke axes)
-
-  if (blCalibration) {        // calibration should start?
-    Calibrate();
-    blCalibration = false;
-  } else {
-    // prevent double start calibration and missing the button press
-    if (mux.CalibrationButtonPushed()) {  
-      isCalibrationPressed = true;
-    } else {
-      if (isCalibrationPressed == true) {
-        isCalibrationPressed = false;
-        blCalibration = true;
-      }
+    // Calibrate?
+    if (digitalReadFast(CALIB_BUTTON_PIN)) {
+      fullCalibration();
     }
+    nextUpdateMillis = currentMillis + 100;
+  }
+  mux.updateJoystickButtons();              // get Joystick buttons
+  readEncoderPos();
+  Joystick.sendState(); // send joystick values to system
+  updateEffects(true);                      // update/calculate new effect paraeters
 
-    // normal yoke mode
-    if (currentMillis >= nextJoystickMillis) {  // do not run more frequently than these many milliseconds, the window system needs time to process
-      mux.UpdateJoystickButtons();              // set Joystick buttons
-      Joystick.sendState();                     // send joystick values to system
-
-      if (currentMillis >= nextEffectsMillis) {   // we calculate condition forces every 100ms or more frequently if we get position updates
-        UpdateEffects(true);                      // update/calculate new effect paraeters
-        nextEffectsMillis = currentMillis + 100;  // set time for new effect loop
-      } else {
-        UpdateEffects(false);  // calculate forces without recalculating condition forces
-                               //this helps having smoother spring/damper/friction
-                               //if our update rate matches our input device
-      }                        //nextEffectsMillis  || pos_updated
-
-      if (mux.MotorPower()) {
-        PrepareMotors();
-      }                                         // move motors
-      nextJoystickMillis = currentMillis + 20;  // set time for new joystick loop
-
-      SerialEvent();                                                  // check if serial event received
-    }  //nextJoystickMillis
-  }    // else
+  for (byte i = MEM_ROLL; i <= MEM_PITCH; i++) {
+    axis[i].applyForce(forces[i], encoderPos[i], physicsData[i].lastVel);
+  }
+  // Serial.println(millis() - currentMillis);
 #endif
-}  // loop
+} // loop
 
+void readEncoderPos() {
+  // Read encoder Positions
+    for (byte i = MEM_ROLL; i <= MEM_PITCH; i++) {
+      encoderPos[i] = axis[i].getCumulativePos();
+      // angularSpeed[i] = axis[i]->readAngularSpeed();
+    }
+}
 
 /***************************
   Calibration
 ****************************/
-void Calibrate() {
-  delay(1000);
-
-  // check motor power available
-  if (!mux.MotorPower()) {               // is motor power available?
-    beepManager.CalibrationError();  //  Calibration error beep
-    delay(BEEP_CODE_DELAY);
-    beepManager.NoMotorPower();
-    return;
+void fullCalibration() {
+  enableMotors();             // enable motors
+  for (byte i = MEM_ROLL; i <= MEM_PITCH; i++) {
+    if (!axis[i].calibrate()) {
+      failedCalibration();
+      break;
+    }
   }
 
-  beepManager.CalibrationStart();  // Calibration start beep
-  delay(BEEP_CODE_DELAY);
-
-  // Start ROLL axis calibration
-  rollAxis.Calibrate();     
-  // check error
-  if(rollAxis.CheckError(true))
-  {
-    return;
-  }
-
-  delay(500);
-
-  // Start PITCH axis calibration
-  pitchAxis.Calibrate();
-  // check error
-  if(pitchAxis.CheckError(false))
-  {
-    return;
-  }
-
-  SetRangeJoystick();  // Set Joystick range
-
-  
+  setRangeJoystick();  // Set Joystick range
 }
 
+void readEEPromCalib() {
+  enableMotors();
+  for (byte i = MEM_ROLL; i <= MEM_PITCH; i++) {
+    if (!axis[i].EEPromCalibration()) {
+      failedCalibration();
+      return;
+    }
+  }
+  setRangeJoystick(); // Set Joystick range
+  axis[MEM_PITCH].centerAxis();
+}
+
+void failedCalibration() {
+  beepManager.beep(250, 300); // Calibration error beep
+  disableMotors();
+}
 
