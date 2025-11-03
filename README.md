@@ -3,7 +3,7 @@
 > ***This project is under development and not yet ready for release!***
 
 # SimInvent FFB Yoke
-A Force Feedback Yoke based on 775 DC motors and an Arduino (SparkFun) Micro Pro microprocessor. 
+A Force Feedback Yoke based on 775 DC motors and an Arduino (SparkFun) Micro Pro microcontroller. 
 Probably the most feature complete and low cost implementation anywhere!
 
 ## Fork with AS5600 magnetic encoders, minimized footprint and new features
