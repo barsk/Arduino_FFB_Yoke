@@ -145,17 +145,17 @@ https://github.com/barsk/Arduino_FFB_Yoke
 #define VELOCITY_HYSTERESIS 5 // max velocity - this value to reenable 
 #define DEFAULT_VELOCITY_PCNT 60 // default percentage of MAX velocity
 
-#define default_PITCH_FORCE_MAX 10000
+#define default_PITCH_TOT_GAIN 50
 #define default_PITCH_PWM_MAX 255
 #define default_PITCH_PWM_MIN 43
 
-#define default_ROLL_FORCE_MAX 10000
+#define default_ROLL_TOT_GAIN 80
 #define default_ROLL_PWM_MAX 255
 #define default_ROLL_PWM_MIN 37
 
 // Limit range from the absolute max found from calib to assure full range is given
-#define RANGE_LIMITER_X 0 
-#define RANGE_LIMITER_Y 20 
+#define EXTREMITY_LIMITER_X 0 
+#define EXTREMITY_LIMITER_Y 20 
 
 // Force to use to *gently* hold the yoke to the endstop if a force is pushing it there
 // If using 0 as force, we can get bouncing towards the endstop (if hands off)

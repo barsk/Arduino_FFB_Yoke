@@ -60,7 +60,6 @@ void Multiplexer::updateJoystickButtons() {
 mux_yoke.update();
 
 #ifdef SERIAL_DEBUG
-      
       Serial.print("  But: ");
       for (uint8_t i = 4, n = mux_yoke.getLength(); i < n; i++) {
         byte data = !mux_yoke.read(i);

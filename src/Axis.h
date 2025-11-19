@@ -58,7 +58,7 @@ typedef struct {
     int32_t iMax;          // Maximum value
     int32_t softLock_range; // soft_lock range
     int32_t softLock_hyst;  // length of hysterersis zone
-    int16_t softlock_force; // end stop force
+    int16_t softlock_force; // endstop force
     int16_t maxVelocity; 
 } AxisConfiguration;
 

@@ -55,10 +55,10 @@ void setupJoystick() {
 
 // default values
 void setupDefaults(){
-  gains[MEM_ROLL].totalGain = 80;
-  gains[MEM_PITCH].totalGain = 50;
+  gains[MEM_ROLL].totalGain = default_PITCH_TOT_GAIN;
+  gains[MEM_PITCH].totalGain = default_ROLL_TOT_GAIN;
 
-  maxVelocityPcnt = 60;
+  maxVelocityPcnt = DEFAULT_VELOCITY_PCNT;
 
   effects[MEM_ROLL].frictionMaxPositionChange = default_frictionMaxPositionChange_ROLL;
   effects[MEM_ROLL].inertiaMaxAcceleration = default_inertiaMaxAcceleration_ROLL;

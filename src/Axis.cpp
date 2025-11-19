@@ -97,7 +97,7 @@ void Axis::stopMotor() {
 
 
 
-// read multiplexer for end stops
+// read multiplexer for endstops
 void Axis::readEndStops() {
   if (blIsRoll) {
     blLimitStart = !digitalReadFast(IR_ROLL_LEFT);
@@ -160,7 +160,7 @@ bool Axis::calibrate() {
     // Remember roll absolute min pos(offset)
   // Cannot do absolute pos for pitch since we have more than one revolution of axis there
   if (blIsRoll) {
-    EEPROM.put(EEPROM_ENCODER_X_OFFSET_INDEX, lastEncoderValue + RANGE_LIMITER_X);
+    EEPROM.put(EEPROM_ENCODER_X_OFFSET_INDEX, lastEncoderValue + EXTREMITY_LIMITER_X);
     // Serial.print("Offset: "); Serial.println(lastEncoderValue + RANGE_LIMITER_X);
   }
        
@@ -181,7 +181,7 @@ bool Axis::calibrate() {
   lastEncoderValue = getCumulativePos(); // max pos, i.e range from 0 to max for travel
  
   // apply limiter to assure we get full range
-  int32_t rangeLimiter = blIsRoll ? RANGE_LIMITER_X : RANGE_LIMITER_Y;
+  int32_t rangeLimiter = blIsRoll ? EXTREMITY_LIMITER_X : EXTREMITY_LIMITER_Y;
 
    // calculate iMin and iMax based on the encoder value
   config.iMax = lastEncoderValue / 2 - rangeLimiter; // Set iMax as half of the maximum encoder value
@@ -240,7 +240,7 @@ bool Axis::pitchEEPromCalibration() {
     return false;
   }
   delay(CALIBRATION_MOTOR_DELAY_Y); // Wait for possible bounce off endstop with power still on
-  resetEncoder(config.iMin - RANGE_LIMITER_Y);  // Set encoder to match min pos
+  resetEncoder(config.iMin - EXTREMITY_LIMITER_Y);  // Set encoder to match min pos
   stopMotor();
   
   return true;
