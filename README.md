@@ -3,11 +3,11 @@ A Force Feedback Yoke based on 775 DC motors and an Arduino (SparkFun) Micro Pro
 Probably the most feature complete and low cost implementation anywhere!
 
 ## Fork with AS5600 magnetic encoders, minimized footprint and new features
-This is a fork of [Gagagu Arduino FFB Yoke 2.0 project](https://github.com/gagagu/Arduino_FFB_Yoke). The goals of this fork was to add new features, achieve a smaller footprint, use cheaper and use more accurate AS5600 magnetic encoders and maximize pitch travel distance.
+This is a fork of [Gagagu Arduino FFB Yoke 2.0 project](https://github.com/gagagu/Arduino_FFB_Yoke). The goals of this fork was to lower total cost, add new features, achieve a smaller footprint, use cheaper and use more accurate AS5600 magnetic encoders and maximize pitch travel distance.
 
 
 # Documentation
-All build guides and documentation for the 3D printed parts, electronics and software is in the [Wiki section!](https://github.com/barsk/Arduino_FFB_Yoke/wiki/Home)
+*All build guides and documentation for the 3D printed parts, electronics and software are in the [Wiki section!](https://github.com/barsk/Arduino_FFB_Yoke/wiki/Home)*
 
 # Design and features
  
@@ -25,14 +25,14 @@ All build guides and documentation for the 3D printed parts, electronics and sof
 * Default centering Spring force (can be disabled) when non-FFB games are played.
 * Configurable pitch travel range in the settings tool.
 * Configurable max velocity setting to stop overspeed on unloaded (i.e hands off) yoke. When there are strong forces and not holding the yoke it can get a high speed that when slamming into a physical end stop may damage the yoke itself (or you). This configurable setting detects high velocity and brakes the motor until speed decreases. If hands are on yoke and kept in control, the FFB forces are in full unhindered effect.
-* Yoke controller is remixed so that only 3 mm brass thread melt-ins is used. The mount bracket is updated for strength.
+* Yoke controller is remixed so that only 3 mm brass thread inserts is used. The mount bracket is updated for strength.
 * Calibration method is completely revamped. It runs automatically on first start to find the endstops (IR sensors) at the extremes of the axis travel. It can also be manually started by a button at any time. 
 * The calibration data is stored in EEPROM and recalled on subsequent reboot. Data is read from EEPROM and as the encoder reads the *absolute* position directly, roll axis calibration can be fully restored instantly. The pitch axis, since the axis rotatates more than one revolution needs a reference and moves to the to the innermost IR sensor - and calibration is restored.
-* Chain link. To prevent breakage of the cabling a chain link is used in the design. This will give all cables from the yoke handle and frame sensors a controlled bend characteristic with a big radius preventing acute bending and breakage. 
+* Cable chain link. To prevent breakage of the cabling a chain link is used in the design. This will give all cables from the yoke handle and frame sensors a controlled bend characteristic with a big radius preventing acute bending and breakage. 
 * A nice looking 3D printed casing with plenty of cooling slots for ventilation is part of the design and fully integrated. The casing is split up into four parts plus the front and back panels which is split in two each, providing a fully printable design despite its large size. The parts are assembled with (printed) dowels and glued together.
 
 ### New settings tool
-A new settings tool written in Python and Qt6. It should also be **cross platform compatible**, e.g. Linux. *Untested ATM*. The tool features a simplified and sleek experience and removes a lot of unnecessary settings. It features a new robust and fast serial protocol.
+A new settings tool written in Python and Qt6. It should also be **cross platform compatible**, e.g. Linux. *untested ATM*. The tool features a simplified and sleek experience and removes a lot of unnecessary settings. It features a new robust and fast serial protocol.
 
 ![Settings tool](Images/YokeTool-pitch.jpg)
 
@@ -40,18 +40,17 @@ A new settings tool written in Python and Qt6. It should also be **cross platfor
 No 3D printed parts are the same from the Gagagu/jwryan4 project. Every part has been redesigned with focus on easy printing, strength, functionality and minimal footprint. The IR-based end-stop sensors are now integrated into the actual design in a way that need no careful positioning as before.
 
 ### Firmware
-The firmware code is heavily modified and enhanced with new features and also updated for the new AS5600 encoders and a TCA9548 I2C mux. With as much optimizations as possible it was possioble to squeeze all the features into the Atmega32u4 28 KB Flash ROM of the Arduino Pro Micro with just about 0.8% space tp spare. :)
+The firmware code is heavily modified and enhanced with new features and also updated for the new AS5600 encoders and a TCA9548 I2C mux. With as much optimizations as possible it was possioble to squeeze all the features into the Atmega32u4 28 KB Flash ROM of the Arduino Pro Micro with just about 0.8% space to spare. :)
 
 ### Electronics and PCB (circuit boards)
 The original yoke controller PCB and the main PCB from Gagaus's project is still used here.
 Since the new encoders uses only **two** GPIO pins and the unnecessary check for 24V was removed we get enough pins to wire all inputs directly to the Arduino, **not needing** the 74HC165 multiplexer chip in the orginal design. Instead we put some jumper wires on the main PCB in the empty 74HC165 component holes to complete the connections directly. By removing the mux we reduce the complexity of the firmware code and improve responsiveness. The two 74HC165D surface mounted chips are still used in the yoke PCB board as before.
 
-In a future release I may replace the main PCB board with a new design.  
+*In a coming release the main PCB board will be updated with a new optimized design that integrates the TCA9548 chip.*
 
 ### FFB Effects
-The actual FFB effects are still based on the [FINO](https://github.com/jmriego/Fino) project and mostly identical to the original project. One addition is a configurable default centering Spring force in action when playing non-FFB games.
-
- For games that themselves handles standard FFB effects such as IL2 and DCS the yoke should work right out of the box.
+The actual FFB effects are based on the [FINO](https://github.com/jmriego/Fino) project and mostly identical to the original project. One addition is a configurable default centering Spring force in action when playing non-FFB games.
+For games that themselves handles standard FFB effects such as IL2 and DCS the yoke should work right out of the box.
 
  #### Microsoft Flight Simulator 2020/2024, Xplane and others without FFB effects
  Since MSFS and others do not have any FFB effects implemented we have to rely on external software to interpret telemetry data from the sim and create effects for that accordingly. 
@@ -59,14 +58,14 @@ The actual FFB effects are still based on the [FINO](https://github.com/jmriego/
  * [XPForce](https://www.fsmissioneditor.com/product/xpforce/) which works for MSFS, Xplane, Flight Sim world, Prepar3D. 
  * [FSForce](https://www.fs-force.com/) Another tool for FSX, FSX-SE, P3D & FSW.
  
- I am not affiliated with these softwares, nor is this in any way a comprehensive list, there may be other options. But these are the only ones I found at the time of writing. Let me know if you know of other programs and I will put those on this list. (Raise an Issue).
+I am not affiliated with these softwares, nor is this in any way a comprehensive list, there may be other options. But these are the only ones I found at the time of writing. Let me know if you know of other programs and I will put them on this list. (Raise an Issue).
 
 ### Assembly
 For easy assembly there is a number of options: 
 
 * A printable "bracket" that can be used to position the right rail correctly. The other parts will then be easy to postition relatively that rail or the edge of the board. 
 * Drill template (drawing) for the bottom board that can be printed in 1:1 scale and layed out on the board to easily position the components. 
-* The STEP file of the board with all holes in the correct spots can be used to machine the board on a CNC router. 
+* The STEP file of the board with all (threaded) screw holes in the correct spots can be used to machine the board on a CNC router. 
 
 These method are described in the [Wiki Build-Guide](https://github.com/barsk/Arduino_FFB_Yoke/wiki/Build-Guide).
 
@@ -75,22 +74,17 @@ The design has some drawbacks that need to be taken in consideration.
 
 * DC motors are not as efficent as brushless BLDC motors. They overheat sooner if pushed hard.  
 * There is more of a cogging sensation in the rotation of these motors than with BLDC (that can use anti-cogging algorithms in the motor drivers to counter the effect)
-* The usage of planetary gears in the pitch axis introduces some backlash, although minor.
+* The usage of planetary gears in the pitch axis introduces some minor backlash.
 
 However, the motors (775 DC) and BTS7960 43A drivers are easy to find and come at a very low cost. BLDC motors and drivers are at the next level cost wise, and what we achieve with these components is pretty impressive!
+Just keep in mind the possible overheating problems and do not use strong forces sustained for a prolonged time as this can overheat the motors. I recommend using heatsinks on the motors and a fan controller that kicks in at about 40 centigrades. When you hear the fan power up, you know you are pushing it. That said, when flying normally with the aircraft properly trimmed this practically never occurs. Heatsinks, fan controllers and fans are all in the Parts List (see [Wiki section](https://github.com/barsk/Arduino_FFB_Yoke/wiki/Part-List)).
 
-> [!Note]
-> Just keep in mind the possible overheating problems and do not use strong forces sustained for a prolonged time as this can overheat the motors. I recommend using heatsinks on the motors and a fan controller that kicks in at about 40 centigrades. When you hear the fan power up, you know you are pushing it. That said, when flying normally with the aircraft properly trimmed this practically never occurs. Heatsinks, fan controllers and fans are all in the Parts List (see [Wiki section](https://github.com/barsk/Arduino_FFB_Yoke/wiki/Part-List)).
+## Using this project commercially is strictly disallowed
+If you want to use this project commercially please contact me.
 
-## Use at your own risk. 
-> [!Caution]
-> DISCLAIMER! I am not responsible for any damage or injury to man or machine. Be careful when handling electric installations, electronics and mechanics. If handling electrical installation (230V) by yourself is not legal in your country or you feel unsure of your competence, take proffessional help! <br>
+> [!Important]
+> DISCLAIMER! Use at your own risk. I am not responsible for any damage or injury to man or machine. Be careful when handling electric installations, electronics and mechanics. If handling electrical installation (230V) by yourself is not legal in your country or you feel unsure of your competence, take proffessional help! <br>
 The motors are quite strong and can cause serious injuries if not handled with great caution. The yoke handle can move very quickly when power is applied. Be aware of moving parts, belts and pulleys.
-
-### It is not allowed to use this project commercially!
-> [!Note]
-> If you want to use this project commercially please contact me.
-
 
 ## References
 ### Some of the Github projects this is based on.
