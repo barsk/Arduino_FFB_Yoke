@@ -308,7 +308,7 @@
        <bool>false</bool>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="rollTab">
        <attribute name="title">
@@ -3774,7 +3774,7 @@
                </size>
               </property>
               <property name="toolTip">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Limits the max speed of the axis. Comes into effect &lt;span style=&quot; font-style:italic;&quot;&gt;if hands are off&lt;/span&gt; and a strong force pulls the yoke in some direction. The speed of the movement can be then be uncontrolled. When the limiter activates it will&lt;span style=&quot; font-weight:700;&quot;&gt; cut power&lt;/span&gt; to the motor.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-style:italic;&quot;&gt;If hands are on the yoke&lt;/span&gt; and breaking it, the limiter will &lt;span style=&quot; font-weight:700;&quot;&gt;not&lt;/span&gt; be activate and Force Feedback forces are applied normally. &lt;br/&gt;&lt;br/&gt;100 means max effect &lt;span style=&quot; font-style:italic;&quot;&gt;as defined&lt;/span&gt; in the device firmware is allowed. Some limiting is aplied even with 100%. Decreasing this value will activate the limiter sooner.&lt;br/&gt;&lt;br/&gt;This functionality can be disabled fully in the firmware if not wanted.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Limits the max speed of the axis. Comes into effect &lt;span style=&quot; font-style:italic;&quot;&gt;if hands are off&lt;/span&gt; and a strong force pulls the yoke in some direction. The speed of the movement can be then be uncontrolled. When the limiter activates it will&lt;span style=&quot; font-weight:700;&quot;&gt; cut power&lt;/span&gt; to the motor.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-style:italic;&quot;&gt;If hands are on the yoke&lt;/span&gt; and breaking it, the limiter will &lt;span style=&quot; font-weight:700;&quot;&gt;not&lt;/span&gt; be activated and Force Feedback forces are applied normally. &lt;br/&gt;&lt;br/&gt;100 means max effect &lt;span style=&quot; font-style:italic;&quot;&gt;as defined&lt;/span&gt; in the device firmware is allowed. Some limiting is aplied even with 100%. Decreasing this value will activate the limiter sooner.&lt;br/&gt;&lt;br/&gt;This functionality can be disabled fully in the firmware if not wanted.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="minimum">
                <number>50</number>
