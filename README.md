@@ -43,10 +43,7 @@ No 3D printed parts are the same from the Gagagu/jwryan4 project. Every part has
 The firmware code is heavily modified and enhanced with new features and also updated for the new AS5600 encoders and a TCA9548 I2C mux. With as much optimizations as possible it was possioble to squeeze all the features into the Atmega32u4 28 KB Flash ROM of the Arduino Pro Micro with just about 0.8% space to spare. :)
 
 ### Electronics and PCB (circuit boards)
-The original yoke controller PCB and the main PCB from Gagaus's project is still used here.
-Since the new encoders uses only **two** GPIO pins and the unnecessary check for 24V was removed we get enough pins to wire all inputs directly to the Arduino, **not needing** the 74HC165 multiplexer chip in the orginal design. Instead we put some jumper wires on the main PCB in the empty 74HC165 component holes to complete the connections directly. By removing the mux we reduce the complexity of the firmware code and improve responsiveness. The two 74HC165D surface mounted chips are still used in the yoke PCB board as before.
-
-*In a coming release the main PCB board will be updated with a new optimized design that integrates the TCA9548 chip.*
+The original yoke controller PCB and the main PCB from Gagaus's project can still be used, but **@PeteDDD** has gratiously contributed new PCB designs of high quality that is now recommended.
 
 ### FFB Effects
 The actual FFB effects are based on the [FINO](https://github.com/jmriego/Fino) project and mostly identical to the original project. One addition is a configurable default centering Spring force in action when playing non-FFB games.
