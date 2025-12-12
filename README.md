@@ -5,7 +5,6 @@ Probably the most feature complete and low cost implementation anywhere!
 ## Fork with AS5600 magnetic encoders, minimized footprint and new features
 This is a fork of [Gagagu Arduino FFB Yoke 2.0 project](https://github.com/gagagu/Arduino_FFB_Yoke). The goals of this fork was to lower total cost, add new features, achieve a smaller footprint, use cheaper and use more accurate AS5600 magnetic encoders and maximize pitch travel distance.
 
-
 # Documentation
 *All build guides and documentation for the 3D printed parts, electronics and software are in the [Wiki section!](https://github.com/barsk/Arduino_FFB_Yoke/wiki/Home)*
 
@@ -15,11 +14,11 @@ This is a fork of [Gagagu Arduino FFB Yoke 2.0 project](https://github.com/gagag
 ![Yoke front](Images/CAD/Yoke%20assembly-front.jpg)
 ![Yoke backside](Images/CAD/Yoke%20assembly-back.jpg)
 
-
+* New CAD design with focus on easy printing and assembly.
+* New PCB design
 * Magnetic AS5600 encoders featuring 12 bit accuracy, saving cost, space and weight.
 * Removed the planetary gear in roll (x) axis which introduces backlash (slop), friction and considerable weight increasing mass and inertia. Replaced with a 56T pulley, 12T motor drive. That gives a 4.7 gear ratio which is quite enough for roll forces and provides a more nimble, lively feel than the old design. 
 * Reduced footprint (400 x 275 x 100 mm).
-* New CAD design with focus on easy printing and assembly.
 * Pitch travel up to 165 mm with 800 mm belt on pitch (Y) axis.
 * No 74HC165 mux in main PCB.
 * Default centering Spring force (can be disabled) when non-FFB games are played.
@@ -31,6 +30,9 @@ This is a fork of [Gagagu Arduino FFB Yoke 2.0 project](https://github.com/gagag
 * Cable chain link. To prevent breakage of the cabling a chain link is used in the design. This will give all cables from the yoke handle and frame sensors a controlled bend characteristic with a big radius preventing acute bending and breakage. 
 * A nice looking 3D printed casing with plenty of cooling slots for ventilation is part of the design and fully integrated. The casing is split up into four parts plus the front and back panels which is split in two each, providing a fully printable design despite its large size. The parts are assembled with (printed) dowels and glued together.
 
+### Electronics and PCB (circuit boards)
+The original yoke controller PCB and the main PCB from Gagaus's project can still be used, but **@PeteDDD** has graciously contributed new PCB designs of high quality that is now recommended.
+
 ### New settings tool
 A new settings tool written in Python and Qt6. It should also be **cross platform compatible**, e.g. Linux. *untested ATM*. The tool features a simplified and sleek experience and removes a lot of unnecessary settings. It features a new robust and fast serial protocol.
 
@@ -41,9 +43,6 @@ No 3D printed parts are the same from the Gagagu/jwryan4 project. Every part has
 
 ### Firmware
 The firmware code is heavily modified and enhanced with new features and also updated for the new AS5600 encoders and a TCA9548 I2C mux. With as much optimizations as possible it was possioble to squeeze all the features into the Atmega32u4 28 KB Flash ROM of the Arduino Pro Micro with just about 0.8% space to spare. :)
-
-### Electronics and PCB (circuit boards)
-The original yoke controller PCB and the main PCB from Gagaus's project can still be used, but **@PeteDDD** has gratiously contributed new PCB designs of high quality that is now recommended.
 
 ### FFB Effects
 The actual FFB effects are based on the [FINO](https://github.com/jmriego/Fino) project and mostly identical to the original project. One addition is a configurable default centering Spring force in action when playing non-FFB games.
@@ -76,14 +75,11 @@ The design has some drawbacks that need to be taken in consideration.
 However, the motors (775 DC) and BTS7960 43A drivers are easy to find and come at a very low cost. BLDC motors and drivers are at the next level cost wise, and what we achieve with these components is pretty impressive!
 Just keep in mind the possible overheating problems and do not use strong forces sustained for a prolonged time as this can overheat the motors. I recommend using heatsinks on the motors and a fan controller that kicks in at about 40 centigrades. When you hear the fan power up, you know you are pushing it. That said, when flying normally with the aircraft properly trimmed this practically never occurs. Heatsinks, fan controllers and fans are all in the Parts List (see [Wiki section](https://github.com/barsk/Arduino_FFB_Yoke/wiki/Part-List)).
 
-## Using this project commercially is strictly disallowed
-If you want to use this project commercially please contact me.
 
-> [!Important]
-> DISCLAIMER! Use at your own risk. I am not responsible for any damage or injury to man or machine. Be careful when handling electric installations, electronics and mechanics. If handling electrical installation (230V) by yourself is not legal in your country or you feel unsure of your competence, take proffessional help! <br>
-The motors are quite strong and can cause serious injuries if not handled with great caution. The yoke handle can move very quickly when power is applied. Be aware of moving parts, belts and pulleys.
 
-## References
+## Credits
+*I wish to thank **@PeteDDD** for invaluable help with professional level proof reading and for the new high quality PCBs.*
+
 ### Some of the Github projects this is based on.
 * [FINO](https://github.com/jmriego/Fino)
 * [ArduinoJoystickWithFFBLibrary](https://github.com/YukMingLaw/ArduinoJoystickWithFFBLibrary)
@@ -93,3 +89,13 @@ The motors are quite strong and can cause serious injuries if not handled with g
 ### Thingiverse
 * [Cadet Yoke v2.0](https://www.thingiverse.com/thing:4884092)
 * [Ender 3 Cable Chain](https://www.thingiverse.com/thing:2920060)
+
+## Using this project commercially is strictly disallowed
+If you want to use this project commercially please contact me.
+
+# Disclaimer!
+> [!Important]
+> Use at your own risk. I am not responsible for any damage or injury to man or machine. Be careful when handling electric installations, electronics and mechanics. If handling electrical installation (230V) by yourself is not legal in your country or you feel unsure of your competence, take proffessional help! <br>
+The motors are quite strong and can cause serious injuries if not handled with great caution. The yoke handle can move very quickly when power is applied. Be aware of moving parts, belts and pulleys.
+
+
