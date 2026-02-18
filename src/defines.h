@@ -139,7 +139,7 @@ https://github.com/barsk/Arduino_FFB_Yoke
 #define default_damperMaxVelocity_PITCH 25
 
 // Speed limit settings
-#define ENABLE_SPEED_LIMITER // To remove function
+// #define ENABLE_SPEED_LIMITER // comment out to remove function
 #define MAX_VELOCITY_X 15
 #define MAX_VELOCITY_Y 25
 #define VELOCITY_HYSTERESIS 5 // max velocity - this value to reenable 

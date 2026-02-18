@@ -55,8 +55,8 @@ void setupJoystick() {
 
 // default values
 void setupDefaults(){
-  gains[MEM_ROLL].totalGain = default_PITCH_TOT_GAIN;
-  gains[MEM_PITCH].totalGain = default_ROLL_TOT_GAIN;
+  gains[MEM_ROLL].totalGain = default_ROLL_TOT_GAIN;
+  gains[MEM_PITCH].totalGain = default_PITCH_TOT_GAIN;
 
   maxVelocityPcnt = DEFAULT_VELOCITY_PCNT;
 

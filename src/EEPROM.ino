@@ -44,7 +44,7 @@ https://github.com/barsk/Arduino_FFB_Yoke
 *******************************************/
 bool isEepromDataValid() {
   int32_t max;
-  EEPROM.get(EEPROM_ENCODER_X_MAX_INDEX, max); // if -1, then calibration data has not been written
+  max = EEPROM.get(EEPROM_ENCODER_X_MAX_INDEX, max); // if -1, then calibration data has not been written
 
   // magic number + version
   return (EEPROM.read(EEPROM_DATA_AVAILABLE_INDEX) == EEPROM_DATA_MAGIC_NUMBER &&
