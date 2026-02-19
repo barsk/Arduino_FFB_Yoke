@@ -40,7 +40,7 @@ https://github.com/barsk/Arduino_FFB_Yoke
 #ifndef DEFINES_H
 #define DEFINES_H
 
-#define FIRMWARE_VERSION 1  // one byte, max 254
+#define FIRMWARE_VERSION 2  // one byte, max 254
 
 /*****************************
  Uncomment for Serial Debug, motors are disabled, debug data will be written to Serial Monitor
