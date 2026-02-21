@@ -56,7 +56,8 @@ https://github.com/barsk/Arduino_FFB_Yoke
 typedef struct {
     int32_t iMin;          // Minimum value
     int32_t iMax;          // Maximum value
-    int32_t softLock_range; // soft_lock range
+    // int32_t softLock_rangePcnt; // soft_lock range in percentage of full range (iMax - iMin)
+    int32_t softLock_range; // soft_lock range, actual value calculated from softLock_rangePcnt and iMin/iMax
     int32_t softLock_hyst;  // length of hysterersis zone
     int16_t softlock_force; // endstop force
     int16_t maxVelocity; 

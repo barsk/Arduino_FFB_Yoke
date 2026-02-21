@@ -53,8 +53,8 @@ void Communication::txData() {
   settingsData.pitchTotGain = gains[MEM_PITCH].totalGain;
   settingsData.pitchPwmMin = adjPwmMin[MEM_PITCH];
   settingsData.pitchTravelRange = axis[MEM_PITCH].getRangePcntFromSoftLockRange();
-  settingsData.defaultSpringGain = gains[MEM_ROLL].defaultSpringGain; // roll and pitch use same value, we use ROLL
-  settingsData.maxVelocityPcnt = maxVelocityPcnt; // roll and pitch use same value, we use ROLL
+  settingsData.defaultSpringGain = gains[MEM_ROLL].defaultSpringGain; // roll and pitch share same value, we use ROLL
+  settingsData.maxVelocityPcnt = maxVelocityPcnt; // roll and pitch share same value, we use ROLL
 
   Serial.flush();
   Serial.write((const byte*)&settingsData, sizeof(SettingsDataStruct));

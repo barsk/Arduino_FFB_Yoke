@@ -61,7 +61,7 @@ Axis::Axis(byte motorPinB, byte motorPinF, bool isRoll, AS5600* encoderPtr,
     config.maxVelocity =  MAX_VELOCITY_X;
     // config.maxVelocity = (uint16_t)(maxVelocityPcnt / 100.0f * MAX_VELOCITY_X);
   } else {
-    maxIncrement = CALIBRATION_MAX_INCREMENT_X;
+    maxIncrement = CALIBRATION_MAX_INCREMENT_Y;
     config.softLock_range = SOFT_LOCK_Y; // will be overwritten by EEPROM value in setup()
     config.softLock_hyst = SOFT_LOCK_BUFFER_Y;
     config.softlock_force = SOFT_LOCK_FORCE_Y;
@@ -384,10 +384,17 @@ int16_t Axis::calcSoftLockForce(int16_t force, int32_t pos, int32_t &hysteresis,
 
 // SoftLock range calculation from travel range percentage of full (iMax)
 void Axis::setSoftLockRangeFromRangePcnt(byte travelRangePcnt) {
-  config.softLock_range = (int32_t)((100.0f - travelRangePcnt)/100.0f * config.iMax);
+  if (config.iMax < 1000) { // 1000 is a reasonable threshold to check if we have a valid calibration, if not use default value
+    config.softLock_range = SOFT_LOCK_Y; // not calibrated, set default value
+  } else {
+    config.softLock_range = (int32_t)((100.0f - travelRangePcnt)/100.0f * config.iMax);
+  }
 }
 
 byte Axis::getRangePcntFromSoftLockRange() {
+  if (config.iMax < 500) { // 500 is a reasonable threshold to check if we have a valid calibration, if not use default value
+    return DEFAULT_SOFT_LOCK_Y_PCNT; // not calibrated, return default value
+  }
   return (uint8_t)(100.0f - 100.0f * config.softLock_range / config.iMax);
 }
 

@@ -90,7 +90,8 @@ void setupDefaults(){
 void setRangeJoystick() {
   // Joystick.setXAxisRange(axis[MEM_ROLL]->config.iMin + SOFT_LOCK_X, axis[MEM_ROLL]->config.iMax - SOFT_LOCK_X);
   Joystick.setXAxisRange(axis[MEM_ROLL].config.iMin, axis[MEM_ROLL].config.iMax);
-  Joystick.setYAxisRange(axis[MEM_PITCH].config.iMin + SOFT_LOCK_Y, axis[MEM_PITCH].config.iMax - SOFT_LOCK_Y);
+  Joystick.setYAxisRange(axis[MEM_PITCH].config.iMin + axis[MEM_PITCH].config.softLock_range, 
+    axis[MEM_PITCH].config.iMax - axis[MEM_PITCH].config.softLock_range);
 }
 
 void updateEffects(bool recalculate) {

@@ -74,7 +74,6 @@ struct Gains{
 	byte inertiaGain       = FORCE_FEEDBACK_MAXGAIN;
 	byte frictionGain      = FORCE_FEEDBACK_MAXGAIN;
 	byte defaultSpringGain = 40; // A reduced default centering force, only active on non-FFB games
-	// byte speedLimitPcnt = 100; // Percentage of axis max speed limit
 };
 
 struct EffectParams{

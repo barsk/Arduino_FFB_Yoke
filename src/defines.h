@@ -40,7 +40,7 @@ https://github.com/barsk/Arduino_FFB_Yoke
 #ifndef DEFINES_H
 #define DEFINES_H
 
-#define FIRMWARE_VERSION 1  // one byte, max 254
+#define FIRMWARE_VERSION 3  // one byte, max 254, change this if you make changes to the eeprom data structure or want to force reset of eeprom settings
 
 /*****************************
  Uncomment for Serial Debug, motors are disabled, debug data will be written to Serial Monitor
@@ -101,7 +101,7 @@ https://github.com/barsk/Arduino_FFB_Yoke
  * EEPROM memory index 
  ****************************/
 // Valid data in EEPROM is indicated by a combination of Magic number and version
-#define EEPROM_DATA_MAGIC_NUMBER   0b10101010 // Magic number to indicate if valid data is written
+#define EEPROM_DATA_MAGIC_NUMBER 0b10101010 // Magic number to indicate if valid data is written (used with FIRMWARE_VERSION)
 
 #define EEPROM_DATA_AVAILABLE_INDEX 0     // eeprom address to indicate data available (size 1)
 #define EEPROM_FIRMWARE_VERSION_INDEX 1         // version indicator, 1 byte (0-254) 
@@ -117,10 +117,10 @@ https://github.com/barsk/Arduino_FFB_Yoke
 
 #define EEPROM_TOTAL_GAIN_X_INDEX 17
 #define EEPROM_DEFAULT_SPRING_FORCE_X_INDEX 18
-#define EEPROM_TRAVEL_RANGE_X_INDEX 19  // Not used ATM.
+#define EEPROM_TRAVEL_RANGE_PCNT_X_INDEX 19  // Not used ATM.
 
 #define EEPROM_TOTAL_GAIN_Y_INDEX 20
-#define EEPROM_TRAVEL_RANGE_Y_INDEX 21 
+#define EEPROM_TRAVEL_RANGE_PCNT_Y_INDEX 21 
 #define EEPROM_DEFAULT_SPRING_FORCE_Y_INDEX 22
 
 #define EEPROM_DATA_INDEX 25              // eeprom start address for data (not used)
@@ -139,11 +139,12 @@ https://github.com/barsk/Arduino_FFB_Yoke
 #define default_damperMaxVelocity_PITCH 25
 
 // Speed limit settings
-// #define ENABLE_SPEED_LIMITER // comment out to remove function
+// #define ENABLE_SPEED_LIMITER // comment out to disable
 #define MAX_VELOCITY_X 15
 #define MAX_VELOCITY_Y 25
 #define VELOCITY_HYSTERESIS 5 // max velocity - this value to reenable 
 #define DEFAULT_VELOCITY_PCNT 60 // default percentage of MAX velocity
+#define DEFAULT_SOFT_LOCK_Y_PCNT 80 // default soft lock range in percentage of full range (iMax - iMin) if not calibrated
 
 #define default_PITCH_TOT_GAIN 50
 #define default_PITCH_PWM_MAX 255
@@ -164,14 +165,14 @@ https://github.com/barsk/Arduino_FFB_Yoke
 #define ENDSTOP_HOLD_FORCE 300
 
 // SOFT LOCK Settings
-// Roll AXIS (NOT USED!)
 
-#define SOFT_LOCK_X 50 // Encoder steps away from physical endstop
+// Roll AXIS (NOT USED!)
+#define SOFT_LOCK_X 50 // Encoder steps away from physical endstop (not used)
 #define SOFT_LOCK_FORCE_X 10000
 #define SOFT_LOCK_BUFFER_X 40
 
 // Pitch AXIS (USED!)
-#define SOFT_LOCK_Y 500 // Encoder steps away from physical endstop
+#define SOFT_LOCK_Y 670 // default encoder steps away from physical endstop
 #define SOFT_LOCK_FORCE_Y 10000
 #define SOFT_LOCK_BUFFER_Y 80
 

@@ -138,8 +138,8 @@ void setup() {
     readEEPromCalib();
   }
 
-  // readEncoderPos();
-  setupJoystick();  // Joystick setup
+  setupJoystick();  // Joystick and settings
+
   Joystick.begin(false);
   axis[MEM_ROLL].setMAxVelocityFromPcnt(maxVelocityPcnt);
   axis[MEM_PITCH].setMAxVelocityFromPcnt(maxVelocityPcnt);
@@ -167,7 +167,7 @@ void loop() {
   Serial.print(F(", X-axis:"));
   Serial.print(encoderPos[MEM_ROLL]); //Serial.print(F(":")); Serial.print(axis[MEM_ROLL].config.iMin);
   Serial.print(F(", Y-axis:"));
-  Serial.print(encoderPos[MEM_PITCH]); //Serial.print(F(":")); Serial.print(axis[MEM_PITCH].config.iMin + SOFT_LOCK_Y);
+  Serial.print(encoderPos[MEM_PITCH]); //Serial.print(F(":")); Serial.print(axis[MEM_PITCH].config.iMin + axis[MEM_PITCH].config.softLock_range);
 
   mux.updateJoystickButtons();              // get Joystick buttons
 
@@ -236,4 +236,3 @@ void failedCalibration() {
   beepManager.beep(250, 300); // Calibration error beep
   disableMotors();
 }
-
