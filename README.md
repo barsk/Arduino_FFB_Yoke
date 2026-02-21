@@ -1,7 +1,10 @@
 # SimInvent FFB Yoke
-> [!Note]
-> A bug has been fixed in the firmware for the initial run when EEPROM values has not yet been set caused pitch and roll axis to get force settings switched, i.e the pitch axis got 80% power which is too strong! About 50% on pitch and 80% on roll is the intended default. *Make sure you get the latest version of the source code!*
-> The speed limiter functionality is also disabled as it can cause interference problems and processor crash, which can cause the motors to run with full power! It can be re-enabled in define.h line 142 when the yoke is confirmed to run without problems. Take care if you enable this!
+> [!Important]
+> A bug has been fixed in the firmware for the initial run when EEPROM values has not yet been set. This caused some violent trembling on the pitch axis. This is now resolved in the new firmware!
+> 
+> ***Make sure you get the latest version of the source code, check FIRMWARE_VERSION 3 in defines.h!***
+> 
+> The speed limiter functionality is also initially disabled as it can cause interference problems and a processor crash, which can cause the motors to run with full power! It can be re-enabled in define.h line 142 when the yoke is confirmed to run without problems. Take care if you enable this! The settings tool will still show a slider for the speed limiter, but it is non-functional if it is disabled in the firmware. This will be resolved in a future update.
 
 A Force Feedback Yoke based on 775 DC motors and an Arduino (SparkFun) Micro Pro microcontroller. 
 Probably the most feature complete and low cost implementation anywhere!
