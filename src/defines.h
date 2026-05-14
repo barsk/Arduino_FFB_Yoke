@@ -146,13 +146,15 @@ https://github.com/barsk/Arduino_FFB_Yoke
 #define DEFAULT_VELOCITY_PCNT 60 // default percentage of MAX velocity
 #define DEFAULT_SOFT_LOCK_Y_PCNT 80 // default soft lock range in percentage of full range (iMax - iMin) if not calibrated
 
-#define default_PITCH_TOT_GAIN 50
+#define default_PITCH_TOT_GAIN 45
 #define default_PITCH_PWM_MAX 255
-#define default_PITCH_PWM_MIN 43
+// #define default_PITCH_PWM_MIN 43
+#define default_PITCH_PWM_MIN 26
 
-#define default_ROLL_TOT_GAIN 80
+#define default_ROLL_TOT_GAIN 70
 #define default_ROLL_PWM_MAX 255
-#define default_ROLL_PWM_MIN 37
+// #define default_ROLL_PWM_MIN 37
+#define default_ROLL_PWM_MIN 25
 
 // Limit range from the absolute max found from calib to assure full range is given
 #define EXTREMITY_LIMITER_X 0 
@@ -181,7 +183,7 @@ https://github.com/barsk/Arduino_FFB_Yoke
 *******************************************/
 #define CALIBRATION_MOTOR_DELAY_X 600
 #define CALIBRATION_MOTOR_DELAY_Y 250
-#define CALIBRATION_MAX_PWM 58                        
+#define CALIBRATION_MAX_PWM 55                        
 #define CALIBRATION_MAX_INCREMENT_Y 35                // Maximum positional delta change per loop (WHILE_DELAY)
 #define CALIBRATION_MAX_INCREMENT_X 45                // Maximum positional delta change per loop (WHILE_DELAY)
 #define CALIBRATION_AXIS_MOVEMENT_TIMEOUT 2000           // Timeout of 4 seconds for no movement

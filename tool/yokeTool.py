@@ -9,7 +9,7 @@ basedir = os.path.dirname(__file__)
 
 try:
     from ctypes import windll  # Only exists on Windows.
-    myappid = 'com.siminvent.ffbyoke.yoketool.0.9'
+    myappid = 'com.siminvent.ffbyoke.yoketool.1.0'
     windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 except ImportError:
     pass
@@ -30,7 +30,7 @@ class MainWindow(QtWidgets.QMainWindow):
         #Load the UI Page
         uic.loadUi(os.path.join(basedir, "mainwindow.ui"), self)
 
-        self.setWindowTitle("SimInvent FFB Yoke Tool v0.9")
+        self.setWindowTitle("SimInvent FFB Yoke Tool v1.0")
         
         self.scanUsbPorts()
         self.pushButton_scanPorts.clicked.connect(self.scanUsbPorts)
@@ -46,6 +46,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Hide read button, only used during debugging
         self.pushButton_read.hide()
+
+        # Hide experimental Velocity Effect slider. 
+        # Comment out to enable, but note that the functionality
+        # must also be enabled in defines.h in the firmwware code
+        self.slider_maxVelocityPcnt.hide();
+        self.label_maxVelocity.hide();
+        self.label_maxVelocity_2.hide();
 
     def scanUsbPorts(self):
         # wmi = win32com.client.GetObject ("winmgmts:")
@@ -113,8 +120,8 @@ class MainWindow(QtWidgets.QMainWindow):
             tup = struct.unpack(structFormat, data)  #struct.unpack(format, bytestring)
 
             #debug
-            for i in range(structSize):
-                print(f"{i}: {tup[i]}")
+            #for i in range(structSize):
+            #    print(f"{i}: {tup[i]}")
 
             if (ord(tup[7]) == 3 and ord(tup[8]) == 62): # check proper padding END ASCII char + '<' for packet       
                 self.slider_rollGain.setValue(tup[0])

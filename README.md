@@ -1,19 +1,11 @@
 # SimInvent FFB Yoke
-> [!Important]
-> A bug has been fixed in the firmware for the initial run when EEPROM values has not yet been set. This caused some violent trembling on the pitch axis. This is now resolved in the new firmware!
-> 
-> ***Make sure you get the latest version of the source code, check FIRMWARE_VERSION 3 in defines.h!***
-> 
-> The speed limiter functionality is also initially disabled as it can cause interference problems and a processor crash, which can cause the motors to run with full power! It can be re-enabled in define.h line 142 when the yoke is confirmed to run without problems. Take care if you enable this! The settings tool will still show a slider for the speed limiter, but it is non-functional if it is disabled in the firmware. This will be resolved in a future update.
-
 A Force Feedback Yoke based on 775 DC motors and an Arduino (SparkFun) Micro Pro microcontroller. 
-Probably the most feature complete and low cost implementation anywhere!
 
 ## Fork with AS5600 magnetic encoders, minimized footprint and new features
 This is a fork of [Gagagu Arduino FFB Yoke 2.0 project](https://github.com/gagagu/Arduino_FFB_Yoke). The goals of this fork was to lower total cost, add new features, achieve a smaller footprint, use cheaper and use more accurate AS5600 magnetic encoders and maximize pitch travel distance.
 
 # Documentation
-*All build guides and documentation for the 3D printed parts, electronics and software are in the [Wiki section!](https://github.com/barsk/Arduino_FFB_Yoke/wiki/Home)*
+***All build guides and documentation for the 3D printed parts, electronics and software are in the [Wiki section!](https://github.com/barsk/Arduino_FFB_Yoke/wiki/Home)***
 
 # Design and features
  
@@ -25,17 +17,21 @@ This is a fork of [Gagagu Arduino FFB Yoke 2.0 project](https://github.com/gagag
 * New PCB design
 * Magnetic AS5600 encoders featuring 12 bit accuracy, saving cost, space and weight.
 * Removed the planetary gear in roll (x) axis which introduces backlash (slop), friction and considerable weight increasing mass and inertia. Replaced with a 56T pulley, 12T motor drive. That gives a 4.7 gear ratio which is quite enough for roll forces and provides a more nimble, lively feel than the old design. 
-* Reduced footprint (400 x 275 x 100 mm).
+* Reduced footprint (410 x 275 x 100 mm).
 * Pitch travel up to 165 mm with 800 mm belt on pitch (Y) axis.
-* No 74HC165 mux in main PCB.
-* Default centering Spring force (can be disabled) when non-FFB games are played.
+* Removed 74HC165 mux in main PCB (compared to Gagagu's design).
+* Default centering Spring force when non-FFB games are played.
 * Configurable pitch travel range in the settings tool.
-* Configurable max velocity setting to stop overspeed on unloaded (i.e hands off) yoke. When there are strong forces and not holding the yoke it can get a high speed that when slamming into a physical end stop may damage the yoke itself (or you). This configurable setting detects high velocity and brakes the motor until speed decreases. If hands are on yoke and kept in control, the FFB forces are in full unhindered effect.
 * Yoke controller is remixed so that only 3 mm brass thread inserts is used. The mount bracket is updated for strength.
 * Calibration method is completely revamped. It runs automatically on first start to find the endstops (IR sensors) at the extremes of the axis travel. It can also be manually started by a button at any time. 
 * The calibration data is stored in EEPROM and recalled on subsequent reboot. Data is read from EEPROM and as the encoder reads the *absolute* position directly, roll axis calibration can be fully restored instantly. The pitch axis, since the axis rotatates more than one revolution needs a reference and moves to the to the innermost IR sensor - and calibration is restored.
 * Cable chain link. To prevent breakage of the cabling a chain link is used in the design. This will give all cables from the yoke handle and frame sensors a controlled bend characteristic with a big radius preventing acute bending and breakage. 
 * A nice looking 3D printed casing with plenty of cooling slots for ventilation is part of the design and fully integrated. The casing is split up into four parts plus the front and back panels which is split in two each, providing a fully printable design despite its large size. The parts are assembled with (printed) dowels and glued together.
+
+### Speed control feature (experimental)
+A configurable max velocity setting to stop overspeed on unloaded (i.e hands off) yoke. When there are strong forces and not holding the yoke it can get to a high speed that when slamming into a physical end stop may damage the yoke itself (or you). This configurable setting detects high velocity and brakes the motor until speed decreases. If hands are on yoke and kept in control, the FFB forces are in full unhindered effect.
+
+The speed limiter functionality is initially *disabled* as it can cause electrical interference  due to high frequency motor power fluctuations. Please refer ti the [Firmware section if you want to try this out.
 
 ### Electronics and PCB (circuit boards)
 The original yoke controller PCB and the main PCB from Gagaus's project can still be used, but **@PeteDDD** has graciously contributed new PCB designs of high quality that is now recommended.
@@ -49,7 +45,7 @@ A new settings tool written in Python and Qt6. It should also be **cross platfor
 No 3D printed parts are the same from the Gagagu/jwryan4 project. Every part has been redesigned with focus on easy printing, strength, functionality and minimal footprint. The IR-based end-stop sensors are now integrated into the actual design in a way that need no careful positioning as before.
 
 ### Firmware
-The firmware code is heavily modified and enhanced with new features and also updated for the new AS5600 encoders and a TCA9548 I2C mux. With as much optimizations as possible it was possioble to squeeze all the features into the Atmega32u4 28 KB Flash ROM of the Arduino Pro Micro with just about 0.8% space to spare. :)
+The firmware code is heavily modified and enhanced with new features and also updated for the new AS5600 encoders and a TCA9548 I2C mux. With many optimizations it was possible to squeeze all the features into the Atmega32u4 28 KB Flash ROM of the Arduino Pro Micro with just a few bytes to spare. :)
 
 ### FFB Effects
 The actual FFB effects are based on the [FINO](https://github.com/jmriego/Fino) project and mostly identical to the original project. One addition is a configurable default centering Spring force in action when playing non-FFB games.
@@ -82,10 +78,8 @@ The design has some drawbacks that need to be taken in consideration.
 However, the motors (775 DC) and BTS7960 43A drivers are easy to find and come at a very low cost. BLDC motors and drivers are at the next level cost wise, and what we achieve with these components is pretty impressive!
 Just keep in mind the possible overheating problems and do not use strong forces sustained for a prolonged time as this can overheat the motors. I recommend using heatsinks on the motors and a fan controller that kicks in at about 40 centigrades. When you hear the fan power up, you know you are pushing it. That said, when flying normally with the aircraft properly trimmed this practically never occurs. Heatsinks, fan controllers and fans are all in the Parts List (see [Wiki section](https://github.com/barsk/Arduino_FFB_Yoke/wiki/Part-List)).
 
-
-
 ## Credits
-*I wish to thank **@PeteDDD** for invaluable help with professional level proof reading and for the new high quality PCBs.*
+*I wish to thank **@PeteDDD** for invaluable help with professional level proof reading and for the new quality PCBs.*
 
 ### Some of the Github projects this is based on.
 * [FINO](https://github.com/jmriego/Fino)
