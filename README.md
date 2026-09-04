@@ -59,6 +59,18 @@ For games that themselves handles standard FFB effects such as IL2 and DCS the y
  
 I am not affiliated with these softwares, nor is this in any way a comprehensive list, there may be other options. But these are the only ones I found at the time of writing. Let me know if you know of other programs and I will put them on this list. (Raise an Issue).
 
+##### Free and open source option (work in progress)
+[SimInvent-TelemFFB](https://github.com/barsk/SimInvent-TelemFFB) is my own fork of
+[VPforce-TelemFFB](https://github.com/walmis/VPforce-TelemFFB), adapted to drive this yoke over
+DirectInput through an open GPLv3 bridge. Unlike the options above it is free, and unlike them I
+*am* affiliated with it.
+
+It is tested on this yoke and nothing else. **If you have other force feedback hardware, use
+official TelemFFB instead** - it supports far more devices and is properly supported.
+
+**This is provisional.** The arrangement with the VPforce/TelemFFB developers is still under
+discussion, so the link, the name and how this is distributed may all change.
+
 ### Assembly
 For easy assembly there is a number of options: 
 
