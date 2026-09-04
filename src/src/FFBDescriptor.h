@@ -4,6 +4,9 @@
 
 static const uint8_t pidReportDescriptor[] PROGMEM= {
   // PID State Report
+  // F1: byte1 = [DevicePaused, ActuatorsEnabled, SafetySwitch, ActuatorOverride,
+  //     ActuatorPower, EffectPlaying, pad, pad]; byte2 = 8-bit Effect Block Index.
+  //     (Was: EffectPlaying at byte2 bit0 + 7-bit index, which the firmware wrote unshifted.)
   0x05, 0x0F,          // USAGE_PAGE (Physical Interface)
   0x09, 0x92,          // USAGE (PID State Report)
   0xA1, 0x02,          // COLLECTION (Logical)
@@ -13,31 +16,20 @@ static const uint8_t pidReportDescriptor[] PROGMEM= {
 	0x09, 0xA4,          // USAGE (Safety Switch)
 	0x09, 0xA5,          // USAGE (Actuator Override Switch)
 	0x09, 0xA6,          // USAGE (Actuator Power)
-	0x15, 0x00,          // LOGICAL_MINIMUM (00)
-	0x25, 0x01,           //  Logical Maximum (1)
-	0x35, 0x00,           //  Physical Minimum (0)
-	0x45, 0x01,           //  Physical Maximum (1)
-	0x75, 0x01,           //  Report Size (1)
-	0x95, 0x05,           //  Report Count (5)
-	0x81, 0x02,           //  Input (variable,absolute)
-	0x95, 0x03,           //  Report Count (3)
-	0x81, 0x03,           //  Input (Constant, Variable)
-	0x09, 0x94,           //  Usage (Effect Playing)
-	0x15, 0x00,           //  Logical Minimum (0)
-	0x25, 0x01,           //  Logical Maximum (1)
-	0x35, 0x00,           //  Physical Minimum (0)
-	0x45, 0x01,           //  Physical Maximum (1)
-	0x75, 0x01,           //  Report Size (1)
-	0x95, 0x01,           //  Report Count (1)
-	0x81, 0x02,           //  Input (variable,absolute)
-	0x09, 0x22,           //  Usage (Effect Block Index)
-	0x15, 0x01,           //  Logical Minimum (1)
-	0x25, 0x28,           //  Logical Maximum (40)
-	0x35, 0x01,           //  Physical Minimum (1)
-	0x45, 0x28,           //  Physical Maximum (40)
-	0x75, 0x07,           //  Report Size (7)
-	0x95, 0x01,           //  Report Count (1)
-	0x81, 0x02,           //  Input (variable,absolute)
+	0x09, 0x94,          // USAGE (Effect Playing)
+	0x15, 0x00,          //  Logical Minimum (0)
+	0x25, 0x01,          //  Logical Maximum (1)
+	0x75, 0x01,          //  Report Size (1)
+	0x95, 0x06,          //  Report Count (6)
+	0x81, 0x02,          //  Input (Data,Var,Abs)
+	0x95, 0x02,          //  Report Count (2)
+	0x81, 0x03,          //  Input (Cnst,Var,Abs) - 2-bit pad
+	0x09, 0x22,          //  Usage (Effect Block Index)
+	0x15, 0x00,          //  Logical Minimum (0)
+	0x25, 0x12,          //  Logical Maximum (18 = MAX_EFFECTS)
+	0x75, 0x08,          //  Report Size (8)
+	0x95, 0x01,          //  Report Count (1)
+	0x81, 0x02,          //  Input (Data,Var,Abs)
   0xC0,                 //End Collection Datalink (Logical) (OK)
 
   //================================OutputReport======================================//
@@ -48,9 +40,9 @@ static const uint8_t pidReportDescriptor[] PROGMEM= {
 	0x85, 0x01,           //Report ID 1
 	0x09, 0x22,           //  Usage (Effect Block Index)
 	0x15, 0x01,           //   Logical Minimum (1)
-	0x25, 0x28,           //   Logical Maximum (40)
+	0x25, 0x12,           //   Logical Maximum (18 = MAX_EFFECTS)  [C2]
 	0x35, 0x01,           //   Physical Minimum (1)
-	0x45, 0x28,           //   Physical Maximum (40)
+	0x45, 0x12,           //   Physical Maximum (18)
 	0x75, 0x08,           //   Report Size (8)
 	0x95, 0x01,           //   Report Count (1)
 	0x91, 0x02,           //   Output (Data,Var,Abs)
@@ -173,9 +165,9 @@ static const uint8_t pidReportDescriptor[] PROGMEM= {
 	0x85, 0x02,           //Report ID 2
 	0x09, 0x22,           //  Usage (Effect Block Index)
 	0x15, 0x01,           //   Logical Minimum (1)
-	0x25, 0x28,           //   Logical Maximum (40)
+	0x25, 0x12,           //   Logical Maximum (18 = MAX_EFFECTS)  [C2]
 	0x35, 0x01,           //   Physical Minimum (1)
-	0x45, 0x28,           //   Physical Maximum (40)
+	0x45, 0x12,           //   Physical Maximum (18)
 	0x75, 0x08,           //   Report Size (8)
 	0x95, 0x01,           //   Report Count (1)
 	0x91, 0x02,           //   Output (Data,Var,Abs)
@@ -191,11 +183,11 @@ static const uint8_t pidReportDescriptor[] PROGMEM= {
 	0x09, 0x5C,           //  Usage (Attack Time)
 	0x09, 0x5E,           //  Usage (Fade Time)
 	0x66, 0x03, 0x10,     //   Unit (1003h) English Linear, Seconds
-	0x55, 0xFD,           //   Unit Exponent (FDh) (X10^-3 ==> Milisecond)
-	0x27, 0xFF, 0x7F, 0, 0, //   Logical Maximum (4294967295)
-	0x47, 0xFF, 0x7F, 0, 0, //   Physical Maximum (4294967295)
-	0x75, 0x20,           //   Report Size (32)
-	0x91, 0x02,           //   Output (Data,Var,Abs)
+	0x55, 0xFD,           //   Unit Exponent (FDh) (X10^-3 ==> Millisecond)
+	0x26, 0xFF, 0x7F,     //   Logical Maximum (32767)  [A1: was 32-bit; struct is uint16_t]
+	0x46, 0xFF, 0x7F,     //   Physical Maximum (32767)
+	0x75, 0x10,           //   Report Size (16)         [A1: was 0x20 (32) - fade time read wrong bytes]
+	0x91, 0x02,           //   Output (Data,Var,Abs)    (Report Count 2 inherited)
 	0x45, 0x00,           //   Physical Maximum (0)
 	0x66, 0x00, 0x00,     //   Unit (0)
 	0x55, 0x00,           //   Unit Exponent (0)
@@ -207,9 +199,9 @@ static const uint8_t pidReportDescriptor[] PROGMEM= {
 	0x85, 0x03,           //Report ID 3
 	0x09, 0x22,           //  Usage (Effect Block Index)
 	0x15, 0x01,           //   Logical Minimum (1)
-	0x25, 0x28,           //   Logical Maximum (40)
+	0x25, 0x12,           //   Logical Maximum (18 = MAX_EFFECTS)  [C2]
 	0x35, 0x01,           //   Physical Minimum (1)
-	0x45, 0x28,           //   Physical Maximum (40)
+	0x45, 0x12,           //   Physical Maximum (18)
 	0x75, 0x08,           //   Report Size (8)
 	0x95, 0x01,           //   Report Count (1)
 	0x91, 0x02,           //   Output (Data,Var,Abs)
@@ -264,9 +256,9 @@ static const uint8_t pidReportDescriptor[] PROGMEM= {
 	0x85, 0x04,           //Report ID 4
 	0x09, 0x22,           //  Usage (Effect Block Index)
 	0x15, 0x01,           //   Logical Minimum (1)
-	0x25, 0x28,           //   Logical Maximum (40)
+	0x25, 0x12,           //   Logical Maximum (18 = MAX_EFFECTS)  [C2]
 	0x35, 0x01,           //   Physical Minimum (1)
-	0x45, 0x28,           //   Physical Maximum (40)
+	0x45, 0x12,           //   Physical Maximum (18)
 	0x75, 0x08,           //   Report Size (8)
 	0x95, 0x01,           //   Report Count (1)
 	0x91, 0x02,           //   Output (Data,Var,Abs)
@@ -298,12 +290,12 @@ static const uint8_t pidReportDescriptor[] PROGMEM= {
 	0x91, 0x02,           //   Output (Data,Var,Abs)
 	0x09, 0x72,           //  Usage (Period)
 	0x15, 0x00,           //   Logical Minimum (0)
-	0x27, 0xFF, 0x7F, 0, 0, //   Logical Maximum (32K)
+	0x26, 0xFF, 0x7F,     //   Logical Maximum (32767)  [A2: was 32-bit; struct is uint16_t]
 	0x35, 0x00,           //   Physical Minimum (0)
-	0x47, 0xFF, 0x7F, 0, 0, //   Physical Maximum (32K)
+	0x46, 0xFF, 0x7F,     //   Physical Maximum (32767)
 	0x66, 0x03, 0x10,     //   Unit (1003h) (English Linear, Seconds)
-	0x55, 0xFD,           //   Unit Exponent (FDh) (X10^-3 ==> Milisecond)
-	0x75, 0x20,           //   Report Size (32)
+	0x55, 0xFD,           //   Unit Exponent (FDh) (X10^-3 ==> Millisecond)
+	0x75, 0x10,           //   Report Size (16)         [A2: was 0x20 (32)]
 	0x95, 0x01,           //   Report Count (1)
 	0x91, 0x02,           //   Output (Data,Var,Abs)
 	0x66, 0x00, 0x00,     //  Unit (0)
@@ -316,9 +308,9 @@ static const uint8_t pidReportDescriptor[] PROGMEM= {
 	0x85, 0x05,           // Report ID 5
 	0x09, 0x22,           //  Usage (Effect Block Index)
 	0x15, 0x01,           //   Logical Minimum (1)
-	0x25, 0x28,           //   Logical Maximum (40)
+	0x25, 0x12,           //   Logical Maximum (18 = MAX_EFFECTS)  [C2]
 	0x35, 0x01,           //   Physical Minimum (1)
-	0x45, 0x28,           //   Physical Maximum (40)
+	0x45, 0x12,           //   Physical Maximum (18)
 	0x75, 0x08,           //   Report Size (8)
 	0x95, 0x01,           //   Report Count (1)
 	0x91, 0x02,           //   Output (Data,Var,Abs)
@@ -338,9 +330,9 @@ static const uint8_t pidReportDescriptor[] PROGMEM= {
 	0x85, 0x06,           // Report ID 6
 	0x09, 0x22,           //  Usage (Effect Block Index)
 	0x15, 0x01,           //   Logical Minimum (1)
-	0x25, 0x28,           //   Logical Maximum (40)
+	0x25, 0x12,           //   Logical Maximum (18 = MAX_EFFECTS)  [C2]
 	0x35, 0x01,           //   Physical Minimum (1)
-	0x45, 0x28,           //   Physical Maximum (40)
+	0x45, 0x12,           //   Physical Maximum (18)
 	0x75, 0x08,           //   Report Size (8)
 	0x95, 0x01,           //   Report Count (1)
 	0x91, 0x02,           //   Output (Data,Var,Abs)
@@ -361,9 +353,9 @@ static const uint8_t pidReportDescriptor[] PROGMEM= {
 	0x85, 0x07,           // Report ID 7
 	0x09, 0x22,           //  Usage (Effect Block Index)
 	0x15, 0x01,           //   Logical Minimum (1)
-	0x25, 0x28,           //   Logical Maximum (40)
+	0x25, 0x12,           //   Logical Maximum (18 = MAX_EFFECTS)  [C2]
 	0x35, 0x01,           //   Physical Minimum (1)
-	0x45, 0x28,           //   Physical Maximum (40)
+	0x45, 0x12,           //   Physical Maximum (18)
 	0x75, 0x08,           //   Report Size (8)
 	0x95, 0x01,           //   Report Count (1)
 	0x91, 0x02,           //   Output (Data,Var,Abs)
@@ -413,9 +405,9 @@ static const uint8_t pidReportDescriptor[] PROGMEM= {
 	0x85, 0x0A,          //Report ID 10
 	0x09, 0x22,           //  Usage (Effect Block Index)
 	0x15, 0x01,           //   Logical Minimum (1)
-	0x25, 0x28,           //   Logical Maximum (40)
+	0x25, 0x12,           //   Logical Maximum (18 = MAX_EFFECTS)  [C2]
 	0x35, 0x01,           //   Physical Minimum (1)
-	0x45, 0x28,           //   Physical Maximum (40)
+	0x45, 0x12,           //   Physical Maximum (18)
 	0x75, 0x08,           //   Report Size (8)
 	0x95, 0x01,           //   Report Count (1)
 	0x91, 0x02,           //   Output (Data,Var,Abs)
@@ -444,9 +436,9 @@ static const uint8_t pidReportDescriptor[] PROGMEM= {
 	0x85, 0x0B,           // Report ID 11
 	0x09, 0x22,           //  Usage (Effect Block Index)
 	0x15, 0x01,           //   Logical Minimum (1)
-	0x25, 0x28,           //   Logical Maximum (40)
+	0x25, 0x12,           //   Logical Maximum (18 = MAX_EFFECTS)  [C2]
 	0x35, 0x01,           //   Physical Minimum (1)
-	0x45, 0x28,           //   Physical Maximum (40)
+	0x45, 0x12,           //   Physical Maximum (18)
 	0x75, 0x08,           //   Report Size (8)
 	0x95, 0x01,           //   Report Count (1)
 	0x91, 0x02,           //   Output (Data,Var,Abs)
@@ -488,9 +480,9 @@ static const uint8_t pidReportDescriptor[] PROGMEM= {
 	0x85, 0x0E,           // Report ID 14
 	0x09, 0x22,           //  Usage (Effect Block Index)
 	0x15, 0x01,           //   Logical Minimum (1)
-	0x25, 0x28,           //   Logical Maximum (40)
+	0x25, 0x12,           //   Logical Maximum (18 = MAX_EFFECTS)  [C2]
 	0x35, 0x01,           //   Physical Minimum (1)
-	0x45, 0x28,           //   Physical Maximum (40)
+	0x45, 0x12,           //   Physical Maximum (18)
 	0x75, 0x08,           //   Report Size (8)
 	0x95, 0x01,           //   Report Count (1)
 	0x91, 0x02,           //   Output (Data,Var,Abs)
@@ -563,10 +555,10 @@ static const uint8_t pidReportDescriptor[] PROGMEM= {
   0xA1, 0x02, // COLLECTION (Logical)
 	0x85, 0x06, // REPORT_ID (06)
 	0x09, 0x22, // USAGE (Effect Block Index)
-	0x25, 0x28, // LOGICAL_MAXIMUM (28)
-	0x15, 0x01, // LOGICAL_MINIMUM (01)
-	0x35, 0x01, // PHYSICAL_MINIMUM (01)
-	0x45, 0x28, // PHYSICAL_MAXIMUM (28)
+	0x25, 0x12, // LOGICAL_MAXIMUM (18 = MAX_EFFECTS)  [C2]
+	0x15, 0x00, // LOGICAL_MINIMUM (00)  (0 = allocation failed)
+	0x35, 0x00, // PHYSICAL_MINIMUM (00)
+	0x45, 0x12, // PHYSICAL_MAXIMUM (18)
 	0x75, 0x08, // REPORT_SIZE (08)
 	0x95, 0x01, // REPORT_COUNT (01)
 	0xB1, 0x02, // FEATURE (Data,Var,Abs)

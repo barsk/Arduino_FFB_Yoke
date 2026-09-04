@@ -49,7 +49,7 @@ bool isEepromDataValid() {
 
   // magic number + version
   return (EEPROM.read(EEPROM_DATA_AVAILABLE_INDEX) == EEPROM_DATA_MAGIC_NUMBER &&
-   EEPROM.read(EEPROM_FIRMWARE_VERSION_INDEX) == FIRMWARE_VERSION  && max_x > 500 && max_y > 500); // a random number > 0 that indicates valid calib
+   EEPROM.read(EEPROM_FIRMWARE_VERSION_INDEX) == FW_EEPROM_VERSION  && max_x > 500 && max_y > 500); // a random number > 0 that indicates valid calib
 } 
 
 /******************************************
@@ -73,7 +73,7 @@ void writeSettingsToEeprom() {
   }
     // set flag to indicate that data is valid and available
   EEPROM.update(EEPROM_DATA_AVAILABLE_INDEX, EEPROM_DATA_MAGIC_NUMBER); // magic number
-  EEPROM.update(EEPROM_FIRMWARE_VERSION_INDEX, FIRMWARE_VERSION);
+  EEPROM.update(EEPROM_FIRMWARE_VERSION_INDEX, FW_EEPROM_VERSION);
   
   // WriteEepromByteArray((eeAddress = EEPROM_TOTAL_GAIN_X_INDEX, gains, MEM_AXES);
   // eeAddress = EEPROM_DATA_INDEX:
@@ -104,9 +104,11 @@ void readSettingsFromEeprom() {
     gains[i].defaultSpringGain = EEPROM.read(eeAddress++);
     byte travelRange =  EEPROM.read(eeAddress++);
 
-    // Actually only Y-axis (pitch) is used, but we store both axis
+    // Roll runs full range on this hardware (no over-rotation) - ignore any stored
+    // roll travel value and force 100 %. When the over-rotation roll HW ships, drop
+    // this and add rollTravelRange to SettingsDataStruct + the config tool.
+    if (i == MEM_ROLL) travelRange = default_ROLL_TRAVEL_RANGE_PCNT;
     axis[i].setSoftLockRangeFromRangePcnt(travelRange);
-    // axis[i].config.softLock_range = (int32_t)((100.0f - travelRange)/100.0f * axis[i].config.iMax);
   }
 
 

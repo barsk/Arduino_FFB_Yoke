@@ -11,6 +11,7 @@
 #define RX_CMD "<RX>"
 #define TX_CMD "<TX>"
 #define RESET_CMD "<RS>"
+#define BUILD_CMD "<BI>"   // build identity, ASCII reply (see txBuildInfo)
 
 void setupDefaults();
 void writeSettingsToEeprom();
@@ -42,6 +43,7 @@ private:
     void txData();
     void rxData();
     void resetDevice();
+    void txBuildInfo();
     void beep(byte times);
     void failBeep(byte times);
 

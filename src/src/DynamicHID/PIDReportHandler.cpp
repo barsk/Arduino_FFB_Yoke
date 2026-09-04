@@ -1,10 +1,18 @@
 #include "PIDReportHandler.h"
 
+#ifdef FFB_SERIAL_TRACE
+void ftV(long v)              { Serial.print(v); Serial.write(','); }
+void ftTag(char tag, long v)  { Serial.write(tag); ftV(v); }
+void ftEnd(long v)            { Serial.println(v); }
+#endif
+
 // Constructor: Initializes the PIDReportHandler with default values
-PIDReportHandler::PIDReportHandler() 
+PIDReportHandler::PIDReportHandler()
 {
     nextEID = 1;  // Next available Effect ID starts at 1
     deviceState = MDEVICESTATE_SPRING;  // Set device state to SPRING mode
+    deviceGain.gain = 255;  // B1: full device gain until the host sends Set Device Gain
+    pidBlockLoad.ramPoolAvailable = MEMORY_SIZE;  // C1: real starting pool (was left at 0 -> underflow)
 }
 
 // Destructor: Frees all effects when the handler is destroyed
@@ -16,18 +24,16 @@ PIDReportHandler::~PIDReportHandler()
 // Gets the next available effect ID and marks it as allocated
 uint8_t PIDReportHandler::GetNextFreeEffect(void)
 {
-    if (nextEID == MAX_EFFECTS)  // If all effects are allocated, return 0
+    // C2: was `nextEID == MAX_EFFECTS` which made effect ID MAX_EFFECTS unreachable
+    // (only MAX_EFFECTS-1 usable). IDs are 1..MAX_EFFECTS, array is [MAX_EFFECTS + 1].
+    if (nextEID > MAX_EFFECTS)  // If all effects are allocated, return 0
         return 0;
 
     uint8_t id = nextEID++;  // Allocate the next effect ID
 
     // Search for the next free spot in the effect states
-    while (g_EffectStates[nextEID].state != 0)
-    {
-        if (nextEID >= MAX_EFFECTS)  // If no more free spots, break out
-            break;
+    while (nextEID <= MAX_EFFECTS && g_EffectStates[nextEID].state != 0)
         nextEID++;
-    }
 
     // Mark the effect as allocated and update the PID state
     g_EffectStates[id].state = MEFFECTSTATE_ALLOCATED;
@@ -39,39 +45,44 @@ uint8_t PIDReportHandler::GetNextFreeEffect(void)
 // Stops all currently active effects
 void PIDReportHandler::StopAllEffects(void)
 {
-    for (uint8_t id = 0; id <= MAX_EFFECTS; id++)  // Loop through all effects
+    for (uint8_t id = 1; id <= MAX_EFFECTS; id++)  // effect IDs are 1-based
         StopEffect(id);  // Stop each effect
 }
 
 // Starts a specific effect by its ID
 void PIDReportHandler::StartEffect(uint8_t id)
 {
-    if (id > MAX_EFFECTS)  // Check if the effect ID is valid
+    if (id == 0 || id > MAX_EFFECTS)  // D1: reject out-of-range indices
         return;
-    
-    // Mark the effect as playing, reset elapsed time, and record the start time
-    g_EffectStates[id].state = MEFFECTSTATE_PLAYING;
+
+    // Mark the effect as playing, reset elapsed time, and record the start time.
+    // Keep the ALLOCATED bit so a subsequent Stop leaves the block allocated (not "free").
+    g_EffectStates[id].state = MEFFECTSTATE_ALLOCATED | MEFFECTSTATE_PLAYING;
     g_EffectStates[id].elapsedTime = 0;
-    g_EffectStates[id].startTime = (uint64_t)millis();
+    g_EffectStates[id].startTime = millis();
 }
 
-// Stops a specific effect by its ID
+// Stops a specific effect by its ID (does NOT free its pool block - see FreeEffect)
 void PIDReportHandler::StopEffect(uint8_t id)
 {
-    if (id > MAX_EFFECTS)  // Check if the effect ID is valid
+    if (id == 0 || id > MAX_EFFECTS)  // D1
         return;
-    
-    // Remove the "playing" state flag and free up memory
+
+    // C1: stopping an effect does not free memory - removed the bogus
+    //     `pidBlockLoad.ramPoolAvailable += SIZE_EFFECT;`
     g_EffectStates[id].state &= ~MEFFECTSTATE_PLAYING;
-    pidBlockLoad.ramPoolAvailable += SIZE_EFFECT;
 }
 
 // Frees a specific effect by its ID
 void PIDReportHandler::FreeEffect(uint8_t id)
 {
-    if (id > MAX_EFFECTS)  // Check if the effect ID is valid
+    if (id == 0 || id > MAX_EFFECTS)  // D1
         return;
-    
+
+    // C1: refund the pool only if this block was actually allocated
+    if (g_EffectStates[id].state != MEFFECTSTATE_FREE)
+        pidBlockLoad.ramPoolAvailable += SIZE_EFFECT;
+
     g_EffectStates[id].state = 0;  // Mark the effect as free
     if (id < nextEID)  // Update nextEID if needed
         nextEID = id;
@@ -88,6 +99,12 @@ void PIDReportHandler::FreeAllEffects(void)
 // Handles effect operation based on the received data (start, stop, loop)
 void PIDReportHandler::EffectOperation(USB_FFBReport_EffectOperation_Output_Data_t* data)
 {
+    if (data->effectBlockIndex == 0 || data->effectBlockIndex > MAX_EFFECTS)  // D1
+        return;
+#ifdef FFB_SERIAL_TRACE
+    ftTag('O', data->operation); ftV(data->effectBlockIndex); ftEnd(data->loopCount);
+#endif
+
     g_EffectStates[data->effectBlockIndex].loopCount = data->loopCount;
     if (data->operation == 1)  // Start effect
     {
@@ -147,9 +164,10 @@ void PIDReportHandler::DeviceControl(USB_FFBReport_DeviceControl_Output_Data_t* 
             StopAllEffects();
             deviceState &= ~(MDEVICESTATE_SPRING);
             break;
-        case 0x04:  // Reset Device
+        case 0x04:  // Reset Device - PID 1.0 s5.13: clear pause, enable actuators, clear effects
             FreeAllEffects();
-            deviceState |= MDEVICESTATE_SPRING;
+            deviceState = MDEVICESTATE_SPRING;   // B2: also clears MDEVICESTATE_PAUSED
+            pidState.status |= 0x02;             // B2: actuators enabled
             break;
         case 0x05:  // Pause Device
             deviceState |= MDEVICESTATE_PAUSED;
@@ -160,6 +178,9 @@ void PIDReportHandler::DeviceControl(USB_FFBReport_DeviceControl_Output_Data_t* 
         default:  // Handle unknown commands
             break;
     }
+#ifdef FFB_SERIAL_TRACE_FULL
+    ftTag('D', control); ftEnd(deviceState);
+#endif
 }
 
 // Sets the device gain based on received data
@@ -197,6 +218,7 @@ void PIDReportHandler::SetEffect(USB_FFBReport_SetEffect_Output_Data_t* data)
     effect->gain = data->gain;
     effect->enableAxis = data->enableAxis;
     effect->startDelay = data->startDelay;
+    effect->triggerButton = data->triggerButton;  // B3: 0 = no trigger, 1..8 = gated on that button
 
     // Recalculate effect duration if looping
     if (effect->loopCount != 0xFF)
@@ -218,7 +240,12 @@ void PIDReportHandler::SetEnvelope(USB_FFBReport_SetEnvelope_Output_Data_t* data
 // Sets the condition (axis-specific parameters) for an effect
 void PIDReportHandler::SetCondition(USB_FFBReport_SetCondition_Output_Data_t* data, volatile TEffectState* effect)
 {
-    uint8_t axis = data->parameterBlockOffset;  // Get the axis
+    // D2: the low nibble is the Parameter Block Offset; the upper bits are the two
+    // 2-bit Type-Specific-Block-Offset ordinals. Masking prevents an out-of-bounds
+    // write into conditions[FFB_AXIS_COUNT].
+    uint8_t axis = data->parameterBlockOffset & 0x0F;
+    if (axis >= FFB_AXIS_COUNT)
+        return;
     if (axis >= effect->conditionReportsCount)
     {
         effect->conditionReportsCount = axis + 1;  // Update condition report count
@@ -236,16 +263,19 @@ void PIDReportHandler::SetCondition(USB_FFBReport_SetCondition_Output_Data_t* da
 // Sets periodic parameters for an effect (magnitude, offset, phase, period)
 void PIDReportHandler::SetPeriodic(USB_FFBReport_SetPeriodic_Output_Data_t* data, volatile TEffectState* effect)
 {
-    effect->magnitude = data->magnitude;
-    effect->offset = data->offset;
-    effect->phase = data->phase;
+    // Clamp to the spec range so the int32 products in the periodic calculators (E6) stay
+    // in bounds even if a non-conformant host exceeds the declared logical maximums.
+    effect->magnitude = data->magnitude > 10000 ? 10000 : data->magnitude;
+    int16_t off = data->offset;
+    effect->offset = off > 10000 ? 10000 : (off < -10000 ? -10000 : off);
+    effect->phase = data->phase % 36000;
     effect->period = data->period;
 }
 
 void PIDReportHandler::SetConstantForce(USB_FFBReport_SetConstantForce_Output_Data_t* data, volatile TEffectState* effect)
 {
-	//  ReportPrint(*effect);
-	effect->magnitude = data->magnitude;
+	int16_t m = data->magnitude;
+	effect->magnitude = m > 10000 ? 10000 : (m < -10000 ? -10000 : m);
 }
 
 void PIDReportHandler::SetRampForce(USB_FFBReport_SetRampForce_Output_Data_t* data, volatile TEffectState* effect)
@@ -273,34 +303,41 @@ void PIDReportHandler::CreateNewEffect(USB_FFBReport_CreateNewEffect_Feature_Dat
 		effect->state = MEFFECTSTATE_ALLOCATED;
 		pidBlockLoad.ramPoolAvailable -= SIZE_EFFECT;
 	}
+#ifdef FFB_SERIAL_TRACE_FULL
+	ftTag('C', inData->effectType); ftV(pidBlockLoad.effectBlockIndex);
+	ftEnd(pidBlockLoad.loadStatus);
+#endif
 }
 
 // Unpack USB data based on the incoming report ID
 void PIDReportHandler::UppackUsbData(uint8_t* data, uint16_t len)
 {
-    // Extract the effect ID from the incoming data
-    uint8_t effectId = data[1];  // The effectBlockIndex is always the second byte.
-    
+    (void)len;  // D4: length is not used - the switch is on data[0]
+    // Extract the effect ID from the incoming data. Valid only for the parameter-block
+    // reports (1..6) - reports 12/13 carry a control/gain byte here instead.
+    uint8_t effectId = data[1];  // The effectBlockIndex is the second byte.
+    bool validId = (effectId >= 1 && effectId <= MAX_EFFECTS);  // D1
+
     // Handle different report IDs
     switch (data[0])  // reportID
     {
     case 1:
-        SetEffect((USB_FFBReport_SetEffect_Output_Data_t*)data);  // Set effect
+        if (validId) SetEffect((USB_FFBReport_SetEffect_Output_Data_t*)data);  // Set effect
         break;
     case 2:
-        SetEnvelope((USB_FFBReport_SetEnvelope_Output_Data_t*)data, &g_EffectStates[effectId]);  // Set envelope
+        if (validId) SetEnvelope((USB_FFBReport_SetEnvelope_Output_Data_t*)data, &g_EffectStates[effectId]);  // Set envelope
         break;
     case 3:
-        SetCondition((USB_FFBReport_SetCondition_Output_Data_t*)data, &g_EffectStates[effectId]);  // Set condition
+        if (validId) SetCondition((USB_FFBReport_SetCondition_Output_Data_t*)data, &g_EffectStates[effectId]);  // Set condition
         break;
     case 4:
-        SetPeriodic((USB_FFBReport_SetPeriodic_Output_Data_t*)data, &g_EffectStates[effectId]);  // Set periodic effect
+        if (validId) SetPeriodic((USB_FFBReport_SetPeriodic_Output_Data_t*)data, &g_EffectStates[effectId]);  // Set periodic effect
         break;
     case 5:
-        SetConstantForce((USB_FFBReport_SetConstantForce_Output_Data_t*)data, &g_EffectStates[effectId]);  // Set constant force
+        if (validId) SetConstantForce((USB_FFBReport_SetConstantForce_Output_Data_t*)data, &g_EffectStates[effectId]);  // Set constant force
         break;
     case 6:
-        SetRampForce((USB_FFBReport_SetRampForce_Output_Data_t*)data, &g_EffectStates[effectId]);  // Set ramp force
+        if (validId) SetRampForce((USB_FFBReport_SetRampForce_Output_Data_t*)data, &g_EffectStates[effectId]);  // Set ramp force
         break;
     case 7:
         SetCustomForceData((USB_FFBReport_SetCustomForceData_Output_Data_t*)data);  // Set custom force data
@@ -334,12 +371,11 @@ void PIDReportHandler::UppackUsbData(uint8_t* data, uint16_t len)
 // Get the PID pool report data
 uint8_t* PIDReportHandler::getPIDPool()
 {
-    FreeAllEffects();  // Free any previously allocated effects
-
+    // (Note: not currently wired up - DynamicHID::GetReport builds this inline.)
     pidPoolReport.reportId = 7;  // Set the report ID for the PID pool
     pidPoolReport.ramPoolSize = MEMORY_SIZE;  // Set the size of the RAM pool
     pidPoolReport.maxSimultaneousEffects = MAX_EFFECTS;  // Set the max simultaneous effects allowed
-    pidPoolReport.memoryManagement = 3;  // Set memory management value
+    pidPoolReport.memoryManagement = 1;  // F3: bit0 = Device Managed Pool. NOT Shared Parameter Blocks.
     return (uint8_t*)& pidPoolReport;  // Return the address of the PID pool report
 }
 
@@ -349,8 +385,20 @@ uint8_t* PIDReportHandler::getPIDBlockLoad()
     return (uint8_t*)& pidBlockLoad;  // Return the address of the PID block load report
 }
 
+uint8_t PIDReportHandler::playingCount()
+{
+    uint8_t n = 0;
+    for (uint8_t i = 1; i <= MAX_EFFECTS; i++)
+        if (g_EffectStates[i].state & MEFFECTSTATE_PLAYING) n++;
+    return n;
+}
+
 // Get the PID status report data
 uint8_t* PIDReportHandler::getPIDStatus()
 {
+    // F1: byte 1 is [DevicePaused, ActuatorsEnabled, SafetySwitch, ActuatorOverride,
+    //     ActuatorPower, EffectPlaying, pad, pad] - recompute the EffectPlaying bit (bit 5).
+    uint8_t playing = playingCount() ? 1 : 0;
+    pidState.status = (pidState.status & ~0x20) | (playing << 5);
     return (uint8_t*)& pidState;  // Return the address of the PID status report
 }

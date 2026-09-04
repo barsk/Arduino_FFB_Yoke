@@ -50,6 +50,7 @@ void setupJoystick() {
     writeSettingsToEeprom(); // store defaults
   }
 
+  setRangeJoystick();  // HID axis range + spring position scale, from the now-loaded softLock_range
   Joystick.setGains(gains);
 }
 
@@ -71,6 +72,11 @@ void setupDefaults(){
   adjPwmMin[MEM_ROLL] = default_ROLL_PWM_MIN;
   adjPwmMin[MEM_PITCH] = default_PITCH_PWM_MIN;
 
+  // Travel limit / end cushion (0 for roll on this HW = full range, no cushion).
+  // No-op if calibration hasn't run yet; setRangeJoystick() re-derives after.
+  axis[MEM_ROLL].setSoftLockRangeFromRangePcnt(default_ROLL_TRAVEL_RANGE_PCNT);
+  axis[MEM_PITCH].setSoftLockRangeFromRangePcnt(default_PITCH_TRAVEL_RANGE_PCNT);
+
   for (byte i = MEM_ROLL; i <= MEM_PITCH; i++) {
     gains[i].constantGain = default_gain;
     gains[i].rampGain = default_gain;
@@ -87,11 +93,19 @@ void setupDefaults(){
   }
 }
 
+// Set the HID-reported range for each axis to its working travel (mechanical
+// range minus the softLock_range cushion), and keep each spring/condition
+// effect's position scale (springMaxPosition) in lock-step with it - otherwise
+// the spring reaches "centre" at a different deflection than the axis reports.
 void setRangeJoystick() {
-  // Joystick.setXAxisRange(axis[MEM_ROLL]->config.iMin + SOFT_LOCK_X, axis[MEM_ROLL]->config.iMax - SOFT_LOCK_X);
-  Joystick.setXAxisRange(axis[MEM_ROLL].config.iMin, axis[MEM_ROLL].config.iMax);
-  Joystick.setYAxisRange(axis[MEM_PITCH].config.iMin + axis[MEM_PITCH].config.softLock_range, 
-    axis[MEM_PITCH].config.iMax - axis[MEM_PITCH].config.softLock_range);
+  for (byte i = MEM_ROLL; i <= MEM_PITCH; i++) {
+    int32_t half = axis[i].config.iMax - axis[i].config.softLock_range;
+    if (half < 0) half = 0;
+    if (half > 32767) half = 32767;              // springMaxPosition / axis range are int16
+    effects[i].springMaxPosition = (int16_t)half;
+  }
+  Joystick.setXAxisRange(-effects[MEM_ROLL].springMaxPosition,  effects[MEM_ROLL].springMaxPosition);
+  Joystick.setYAxisRange(-effects[MEM_PITCH].springMaxPosition, effects[MEM_PITCH].springMaxPosition);
 }
 
 void updateEffects(bool recalculate) {
@@ -102,30 +116,30 @@ void updateEffects(bool recalculate) {
   int16_t diffTime = currentMillis - lastEffectsUpdate;
 
   for (byte i = MEM_ROLL; i <= MEM_PITCH; i++) {
-    effects[i].springMaxPosition = axis[i].config.iMax - axis[i].config.softLock_range;
+    // springMaxPosition is set in setRangeJoystick() (in lock-step with the HID
+    // axis range); here we only feed the live position.
     effects[i].springPosition = encoderPos[i];
 
-    int16_t positionChange, accel, vel;
     if (diffTime > 0 && recalculate) {
       lastEffectsUpdate = currentMillis;
-      positionChange = encoderPos[i] - physicsData[i].lastPos;
-      vel = positionChange / diffTime;
-      accel = ((vel - physicsData[i].lastVel) * 10) / diffTime;
+      int32_t positionChange = encoderPos[i] - physicsData[i].lastPos;
+      // E5: scale BEFORE dividing so gentle inputs don't quantise to 0. Pure integer.
+      // vel is counts/ms << VEL_SHIFT (see defines.h); accel inherits the same scale.
+      // Clamp both to int16 - a violent slam saturates, which is the correct behaviour
+      // for damper/inertia (they resist), and keeps EffectParams compact.
+      int32_t vel = ((int32_t)positionChange << VEL_SHIFT) / diffTime;
+      vel = constrain(vel, -32767, 32767);
+      int32_t accel = ((vel - physicsData[i].lastVel) * 10) / diffTime;
+      accel = constrain(accel, -32767, 32767);
 
-      //If you need to use the friction effect, set the following parameters.`PositionChange`
-      //is the position difference of the force feedback axis.
-      effects[i].frictionPositionChange = positionChange;
-
-      //If you need to use the damper effect, set the following parameters.`Velocity` is the current velocity of the force feedback axis.
+      effects[i].frictionPositionChange = constrain(positionChange, -32767, 32767);  // raw delta
       effects[i].inertiaAcceleration = accel;
-
-      //If you need to use the inertia effect, set the following parameters.`Acceleration` is the current acceleration of the force feedback axis.
       effects[i].damperVelocity = vel;
 
       physicsData[i].lastPos = encoderPos[i];
       physicsData[i].lastAccel = accel;
       physicsData[i].lastVel = vel;
-    } 
+    }
   }
   
   Joystick.setXAxis(encoderPos[MEM_ROLL]);

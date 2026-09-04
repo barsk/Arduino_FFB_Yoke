@@ -45,11 +45,11 @@ https://github.com/barsk/Arduino_FFB_Yoke
 //   return (int)&v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
 // }
 
-Axis::Axis(byte motorPinB, byte motorPinF, bool isRoll, AS5600* encoderPtr,
+Axis::Axis(byte motorPinB, byte motorPinF, byte motorPinEnable, bool isRoll, AS5600* encoderPtr,
   byte channel, TCA9548* i2c_muxPtr, Multiplexer* multiplexerPtr, BeepManager* beepManagerPtr, byte& adjPwmMinPtr) //byte& maxVel,
-  : motorPinBack(motorPinB), motorPinForw(motorPinF), blIsRoll(isRoll), encoder(encoderPtr),
+  : motorPinBack(motorPinB), motorPinForw(motorPinF), motorPinEn(motorPinEnable), blIsRoll(isRoll), encoder(encoderPtr),
   i2c_channel(channel), i2c_mux(i2c_muxPtr), multiplexer(multiplexerPtr), beepManager(beepManagerPtr), pwmMin(adjPwmMinPtr), // maxVelocityPcnt(maxVel)
-  speedLimitActive(false) {
+  speedLimitActive(false), motorArmed(false), enHigh(false) {
 
   lastMovementTime = millis();
 
@@ -59,6 +59,7 @@ Axis::Axis(byte motorPinB, byte motorPinF, bool isRoll, AS5600* encoderPtr,
     config.softLock_hyst = SOFT_LOCK_BUFFER_X;
     config.softlock_force = SOFT_LOCK_FORCE_X;
     config.maxVelocity =  MAX_VELOCITY_X;
+    config.maxCalibPwm = CALIBRATION_MAX_PWM_X;
     // config.maxVelocity = (uint16_t)(maxVelocityPcnt / 100.0f * MAX_VELOCITY_X);
   } else {
     maxIncrement = CALIBRATION_MAX_INCREMENT_Y;
@@ -66,11 +67,26 @@ Axis::Axis(byte motorPinB, byte motorPinF, bool isRoll, AS5600* encoderPtr,
     config.softLock_hyst = SOFT_LOCK_BUFFER_Y;
     config.softlock_force = SOFT_LOCK_FORCE_Y;
     config.maxVelocity = MAX_VELOCITY_Y;
+    config.maxCalibPwm = CALIBRATION_MAX_PWM_Y;
   }
 }
 
 void Axis::setPwmMin(byte min) {
   pwmMin = min;
+}
+
+// Drive the H-bridge enable pin, caching the level so the hot loop only writes on a change.
+void Axis::setEn(bool high) {
+  if (high != enHigh) {
+    digitalWrite(motorPinEn, high ? HIGH : LOW);
+    enHigh = high;
+  }
+}
+
+// Called by enableMotors()/disableMotors(). Disarmed => applyForce() leaves the bridge released.
+void Axis::setArmed(bool on) {
+  motorArmed = on;
+  setEn(on);
 }
 
 // Method to move the motor in a given direction
@@ -270,7 +286,7 @@ bool Axis::slowMove(bool direction, int32_t targetPos) {
 
     // Check for speed increase
     if (abs(currentEncoderValue - lastEncoderValue) <= maxIncrement) {
-      if (pwmSpeed < CALIBRATION_MAX_PWM) pwmSpeed++;
+      if (pwmSpeed < config.maxCalibPwm) pwmSpeed++;
     } else {
       lastMovementTime = millis();
       if (abs(currentEncoderValue - lastEncoderValue) > maxIncrement + 20) { // too fast?
@@ -280,7 +296,7 @@ bool Axis::slowMove(bool direction, int32_t targetPos) {
     lastEncoderValue = currentEncoderValue;
 
     // Constrain to make sure...
-    pwmSpeed = constrain(pwmSpeed, 0, CALIBRATION_MAX_PWM);
+    pwmSpeed = constrain(pwmSpeed, 0, config.maxCalibPwm);
     driveMotor(direction);
 
     // Movement Timeout?
@@ -316,8 +332,11 @@ void Axis::applyForce(int16_t gForce, int32_t& pos, int16_t& velocity) {
 
   readEndStops(); // get limit switches
 
-  // SOFT STOP?
-  if (!blIsRoll) {
+  // SOFT STOP?  Cushion the axis inside the outer softLock_range margin so a
+  // spinning wheel doesn't slam the mechanical endstop. softLock_range == 0
+  // (travel limit 100 %) disables it - and avoids a divide-by-zero in the
+  // map() inside calcSoftLockForce when sl_start == sl_end.
+  if (config.softLock_range > 0) {
     if (pos <= config.iMin + config.softLock_range) {
       gForce = calcSoftLockForce(gForce, -pos, config.softLock_hyst, -config.iMin - config.softLock_range, -config.iMin, -config.softlock_force);
     } else if (pos >= config.iMax - config.softLock_range) {
@@ -339,7 +358,7 @@ void Axis::applyForce(int16_t gForce, int32_t& pos, int16_t& velocity) {
     // Serial.println(velocity);
   }
   if (speedLimitActive) {
-      if (abs(velocity) <= config.maxVelocity - 5) {
+      if (abs(velocity) <= config.maxVelocity - VELOCITY_HYSTERESIS) {
       speedLimitActive = false;
       // Serial.println(F("Reenabling"));
     } else {
@@ -348,12 +367,45 @@ void Axis::applyForce(int16_t gForce, int32_t& pos, int16_t& velocity) {
   }
   #endif
 
-  if (abs(gForce) > 5) { // only apply pwmMin if gforce active, remove rounding errors etc
-    pwmSpeed = map(abs(gForce), 0, 10000, pwmMin, 255);
+  // Force -> PWM.  lin: linear span 0..(255-pwmMin) across the whole force range.
+  // off: breakaway offset, eased in quadratically from offMin up to pwmMin over
+  // PWM_KNEE_FORCE (defines.h) instead of stepping straight to pwmMin. offMin =
+  // PWM_KNEE_FLOOR_PCT % of pwmMin trims the low-end dead zone. At/above the knee,
+  // lin+off is the old map(|gForce|,0,10000,pwmMin,255). See PWM_KNEE_* for why.
+  int16_t g = abs(gForce);
+  if (g > 5) { // ignore a few units of rounding noise at true idle
+    uint16_t lin = (uint16_t)(((uint32_t)g * (255 - pwmMin)) / 10000);
+    uint16_t offMin = (uint16_t)(((uint32_t)pwmMin * PWM_KNEE_FLOOR_PCT) / 100);
+    if (offMin > pwmMin) offMin = pwmMin;                 // clamp if PCT mis-set > 100
+    uint16_t off = (g >= PWM_KNEE_FORCE)
+                     ? pwmMin
+                     : offMin + (uint16_t)(((uint32_t)(pwmMin - offMin) * g * g) /
+                                           ((uint32_t)PWM_KNEE_FORCE * PWM_KNEE_FORCE));
+    uint16_t p = lin + off;
+    pwmSpeed = (p > 255) ? 255 : (byte)p;
   } else {
     pwmSpeed = 0;
   }
 
+#ifdef ENABLE_FRICTION_FF
+  // Stribeck breakaway assist: extra push in the commanded direction, max at
+  // rest, fading with speed as  falloff = VS / (VS + |v|)  (Q8). See defines.h.
+  if (g > FRIC_FF_MIN_FORCE) {
+    uint16_t vmag = abs(velocity);
+    uint16_t fall = (uint16_t)(((uint32_t)FRIC_FF_VS << 8) / ((uint32_t)FRIC_FF_VS + vmag));
+    uint16_t pf   = pwmSpeed + (uint16_t)(((uint32_t)FRIC_FF_STATIC * fall) >> 8);
+    pwmSpeed = (pf > 255) ? 255 : (byte)pf;
+  }
+#endif
+
+  if (!motorArmed) return;              // failed calibration / disabled: keep the bridge released
+#ifdef COAST_AT_IDLE
+  if (pwmSpeed == 0) {                  // nothing commanded -> release the bridge, axis coasts
+    setEn(false);
+    return;
+  }
+#endif
+  setEn(true);                          // no-op after the first call (enHigh cache)
   driveMotor(gForce > 0);
 }
 
@@ -382,20 +434,22 @@ int16_t Axis::calcSoftLockForce(int16_t force, int32_t pos, int32_t &hysteresis,
   return force;
 }
 
-// SoftLock range calculation from travel range percentage of full (iMax)
+// softLock_range (cushion width, encoder steps) from a working-travel percentage.
+// 100 % -> 0 (full range, no cushion).  Applies to both axes uniformly.
 void Axis::setSoftLockRangeFromRangePcnt(byte travelRangePcnt) {
-  if (config.iMax < 1000) { // 1000 is a reasonable threshold to check if we have a valid calibration, if not use default value
-    config.softLock_range = SOFT_LOCK_Y; // not calibrated, set default value
-  } else {
-    config.softLock_range = (int32_t)((100.0f - travelRangePcnt)/100.0f * config.iMax);
+  if (travelRangePcnt < 1)   travelRangePcnt = 1;
+  if (travelRangePcnt > 100) travelRangePcnt = 100;
+  if (config.iMax <= 0) {                 // not calibrated yet - no cushion
+    config.softLock_range = 0;
+    return;
   }
+  config.softLock_range = (int32_t)((100.0f - travelRangePcnt) / 100.0f * config.iMax);
 }
 
 byte Axis::getRangePcntFromSoftLockRange() {
-  if (config.iMax < 500) { // 500 is a reasonable threshold to check if we have a valid calibration, if not use default value
-    return DEFAULT_SOFT_LOCK_Y_PCNT; // not calibrated, return default value
-  }
-  return (uint8_t)(100.0f - 100.0f * config.softLock_range / config.iMax);
+  if (config.iMax <= 0) return 100;       // not calibrated -> report full range
+  return (byte)constrain(
+      (int)(100.0f - 100.0f * config.softLock_range / config.iMax), 1, 100);
 }
 
 void Axis::setMAxVelocityFromPcnt(byte maxVel) {

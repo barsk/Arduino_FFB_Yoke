@@ -80,9 +80,9 @@ struct EffectParams{
     int16_t springMaxPosition = 0;
     int16_t springPosition = 0;
 
-    int16_t damperMaxVelocity = 0;
-    int16_t damperVelocity = 0;
-
+    int16_t damperMaxVelocity = 0;   // E5: velocity is counts/ms << VEL_SHIFT; updateEffects()
+    int16_t damperVelocity = 0;      // clamps vel/accel to int16 (violent transients saturate,
+                                     // which is the right behaviour for a resist-type effect).
     int16_t inertiaMaxAcceleration = 0;
     int16_t inertiaAcceleration = 0;
 
@@ -98,13 +98,10 @@ private:
 	int16_t	                 _xAxis;
 	int16_t	                 _yAxis;
 	int16_t	                 _zAxis;
-	int16_t	                 _xAxisRotation;
-	int16_t	                 _yAxisRotation;
-	int16_t	                 _zAxisRotation;
-	int16_t                  _throttle;
-	int16_t                  _rudder;
 	int16_t	                 _hatSwitchValues[JOYSTICK_HATSWITCH_COUNT_MAXIMUM];
-    uint8_t                 *_buttonValues = NULL;
+	// Fixed-size button bitmap (32 buttons max / 8). Was `new uint8_t[]` - see note in
+	// the constructor: dropping the 3 heap allocations lets malloc/free be gc-sectioned.
+	uint8_t                  _buttonValues[4] = {0};
 
     // Joystick Settings
     bool                     _autoSendState;
@@ -112,26 +109,15 @@ private:
     uint8_t                  _buttonValuesArraySize = 0;
 	uint8_t					 _hatSwitchCount;
 	uint8_t					 _includeAxisFlags;
-	uint8_t					 _includeSimulatorFlags;
 	int16_t                  _xAxisMinimum = JOYSTICK_DEFAULT_AXIS_MINIMUM;
 	int16_t                  _xAxisMaximum = JOYSTICK_DEFAULT_AXIS_MAXIMUM;
 	int16_t                  _yAxisMinimum = JOYSTICK_DEFAULT_AXIS_MINIMUM;
 	int16_t                  _yAxisMaximum = JOYSTICK_DEFAULT_AXIS_MAXIMUM;
 	int16_t                  _zAxisMinimum = JOYSTICK_DEFAULT_AXIS_MINIMUM;
 	int16_t                  _zAxisMaximum = JOYSTICK_DEFAULT_AXIS_MAXIMUM;
-	int16_t                  _rxAxisMinimum = JOYSTICK_DEFAULT_AXIS_MINIMUM;
-	int16_t                  _rxAxisMaximum = JOYSTICK_DEFAULT_AXIS_MAXIMUM;
-	int16_t                  _ryAxisMinimum = JOYSTICK_DEFAULT_AXIS_MINIMUM;
-	int16_t                  _ryAxisMaximum = JOYSTICK_DEFAULT_AXIS_MAXIMUM;
-	int16_t                  _rzAxisMinimum = JOYSTICK_DEFAULT_AXIS_MINIMUM;
-	int16_t                  _rzAxisMaximum = JOYSTICK_DEFAULT_AXIS_MAXIMUM;
-	int16_t                  _rudderMinimum = JOYSTICK_DEFAULT_SIMULATOR_MINIMUM;
-	int16_t                  _rudderMaximum = JOYSTICK_DEFAULT_SIMULATOR_MAXIMUM;
-	int16_t                  _throttleMinimum = JOYSTICK_DEFAULT_SIMULATOR_MINIMUM;
-	int16_t                  _throttleMaximum = JOYSTICK_DEFAULT_SIMULATOR_MAXIMUM;
 
 	uint8_t                  _hidReportId;
-	uint8_t                  _hidReportSize; 
+	uint8_t                  _hidReportSize;
 	
 	// print separat forces to serial plotter?
 	// #define 				 _serialPrintForces  1		
@@ -220,7 +206,6 @@ private:
 protected:
 	int buildAndSet16BitValue(bool includeValue, int16_t value, int16_t valueMinimum, int16_t valueMaximum, int16_t actualMinimum, int16_t actualMaximum, uint8_t dataLocation[]);
 	int buildAndSetAxisValue(bool includeAxis, int16_t axisValue, int16_t axisMinimum, int16_t axisMaximum, uint8_t dataLocation[]);
-	int buildAndSetSimulationValue(bool includeValue, int16_t value, int16_t valueMinimum, int16_t valueMaximum, uint8_t dataLocation[]);
 
 public:
 	Joystick_(

@@ -19,6 +19,15 @@ public:
 	volatile TEffectState g_EffectStates[MAX_EFFECTS + 1]; // Array to store effect states
 	volatile uint8_t deviceState;   // Variable to store the current device state
 
+#ifdef FFB_SERIAL_TRACE
+	// OUT reports processed since the last 'F' trace line. The interrupt OUT endpoint
+	// is declared bInterval=1, so the wire carries at most ~1000 reports/s for the whole
+	// device; if this pegs near 250 per 250 ms window the host is saturating the pipe and
+	// its overflow is queuing in the Windows HID stack (effect latency that grows with
+	// time in flight). Reset by the F line in forceCalculator().
+	volatile uint16_t rxReportCount = 0;
+#endif
+
 	// Variables for storing previous values used in calculations
 	volatile int16_t inertiaT = 0;  // Variable to store inertia time
 	volatile int16_t oldSpeed = 0;   // Variable to store the previous speed
@@ -59,5 +68,6 @@ public:
 	uint8_t* getPIDPool(); // Get PID pool report data
 	uint8_t* getPIDBlockLoad(); // Get PID block load report data
 	uint8_t* getPIDStatus(); // Get PID status report data
+	uint8_t playingCount();  // number of effects currently in MEFFECTSTATE_PLAYING
 };
 #endif

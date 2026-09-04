@@ -4,20 +4,27 @@ Communication::Communication(BeepManager *ptr, Gains *gainsPtr,  byte *adjPwmMin
   beepManager(ptr), gains(gainsPtr), adjPwmMin(adjPwmMinPtr), axis(axisPtr), maxVelocityPcnt(maxVelocityPcntVal) {}
 
 void Communication::serialEvent() {
-  if (Serial.available() > 0) {
+  // Every command is "<..>". Drop anything that isn't the start of one so a stray/noise
+  // byte can't sit in the buffer forcing readBytes() to block for the Stream timeout
+  // (which would freeze the FFB loop). Only engage once a whole 4-byte command is buffered.
+  while (Serial.available() > 0 && Serial.peek() != '<')
+    Serial.read();
 
-    char  cmd[5];
-    size_t size = Serial.readBytes(cmd, 4);
-    if (size != 4) return;
-    cmd[4] = '\0'; // add null char, makes it a string
+  if (Serial.available() < 4) return;
 
-    if (strcmp(cmd, RX_CMD) == 0) { // Receive data from settings app
-      rxData();
-    } else if (strcmp(cmd, TX_CMD) == 0) { // Transmit data to settings app
-      txData();
-    } else if (strcmp(cmd, RESET_CMD) == 0) { // Transmit data to settings app
-      resetDevice();
-    } 
+  char  cmd[5];
+  size_t size = Serial.readBytes(cmd, 4);
+  if (size != 4) return;
+  cmd[4] = '\0'; // add null char, makes it a string
+
+  if (strcmp(cmd, RX_CMD) == 0) { // Receive data from settings app
+    rxData();
+  } else if (strcmp(cmd, TX_CMD) == 0) { // Transmit data to settings app
+    txData();
+  } else if (strcmp(cmd, RESET_CMD) == 0) { // Transmit data to settings app
+    resetDevice();
+  } else if (strcmp(cmd, BUILD_CMD) == 0) { // Which firmware is this?
+    txBuildInfo();
   }
 }
 
@@ -59,6 +66,20 @@ void Communication::txData() {
   Serial.flush();
   Serial.write((const byte*)&settingsData, sizeof(SettingsDataStruct));
   beep(1);
+}
+
+// Build identity, on request only.
+//
+// Its own command rather than extra fields on SettingsDataStruct: the tool reads that
+// struct as a fixed-size block, so growing it would break every existing build of the
+// tool.  A tool that predates this command simply never sends <BI>, and a tool that
+// knows about it gets an answer - so both directions stay compatible.
+//
+// ASCII, newline-terminated, so the host reads to '\n' rather than a fixed length -
+// the variant name is free-form and the compiler's date/time format is not ours to fix.
+// No beep: this is a passive query, not a settings change.
+void Communication::txBuildInfo() {
+  Serial.print(F(BUILD_CMD FW_VARIANT " " __DATE__ " " __TIME__ "\n"));
 }
 
 void Communication::resetDevice() {

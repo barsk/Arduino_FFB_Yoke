@@ -61,6 +61,7 @@ typedef struct {
     int32_t softLock_hyst;  // length of hysterersis zone
     int16_t softlock_force; // endstop force
     int16_t maxVelocity; 
+    byte maxCalibPwm; // maximum pwm to use for the axis during calibration, 0-255
 } AxisConfiguration;
 
 class Axis {
@@ -69,11 +70,14 @@ private:
     TCA9548* i2c_mux;           // Pointer to I2C multiplexer TCA9548    
     const byte motorPinBack;          // Pin for left/down motor control
     const byte motorPinForw;         // Pin for right/up motor control
+    const byte motorPinEn;         // H-bridge enable (R_EN+L_EN tied); LOW releases the bridge -> motor coasts
     const bool blIsRoll;            // is Roll or Pitch
     bool blLimitStart;
     bool blLimitEnd;
     byte& pwmMin;           // Min pwm to start range from, max is 255
-    bool speedLimitActive; 
+    bool speedLimitActive;
+    bool motorArmed;       // cleared on failed calibration / disableMotors() -> applyForce() stays dark
+    bool enHigh;           // cached motorPinEn level, skip redundant digitalWrite in the hot loop
     AS5600* encoder;          // Pointer to the encoder object
     byte i2c_channel;         // Channel on TCA9548 for the encoder          
     byte pwmSpeed;                 // Current force  of the motor
@@ -82,8 +86,9 @@ private:
     byte maxIncrement;     // Target position increment to allow for speed measurement
 
     // Calibration start time
-    unsigned long calibrationStartTime; 
+    unsigned long calibrationStartTime;
     void driveMotor(bool direction);
+    void setEn(bool high);   // drive motorPinEn, tracking enHigh to avoid redundant writes
 
     bool slowMove(bool direction, int32_t targetPos = -1);
     void readEndStops();
@@ -97,13 +102,13 @@ private:
 
 public:
     // Constructor to initialize motor pins and end switches
-    Axis(byte motorPinBack, byte motorPinForw, bool isRoll, AS5600* encoderPtr, byte i2c_channel,
+    Axis(byte motorPinBack, byte motorPinForw, byte motorPinEnable, bool isRoll, AS5600* encoderPtr, byte i2c_channel,
         TCA9548* i2c_muxPtr, Multiplexer* multiplexerPtr, BeepManager *beepManager, byte& adjPwmMinPtr);
 
     // Axis configuration object
     AxisConfiguration config;
     
-    void applyForce(int16_t force, int32_t &pos, int16_t &angularSpeed);
+    void applyForce(int16_t force, int32_t &pos, int16_t &velocity);
 
     // Read encoder cumulative position
     int32_t getCumulativePos();
@@ -115,6 +120,9 @@ public:
     float readAngularSpeed();
 
     void setPwmMin(byte min);
+
+    // Arm (calibration OK) or disarm the motor bridge. Disarmed -> applyForce() never drives.
+    void setArmed(bool on);
 
     // Method to center
     void centerAxis(bool resetPwmSpeed = false);

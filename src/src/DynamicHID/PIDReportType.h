@@ -35,7 +35,11 @@
 #define _PIDREPORTTYPE_H
 
 // Define constants related to the force feedback joystick
-#define MAX_EFFECTS 14  // Maximum number of effects supported
+#define MAX_EFFECTS 18  // Maximum number of effects supported. Raised from the stock 14 for
+                        // TelemFFB, which juggles more simultaneous effects. Each effect state
+                        // is ~65 B of RAM; 18 leaves ~320 B free for the stack, 20 left only
+                        // ~185 B (too tight on this MCU). To go higher, move the joystick HID
+                        // report descriptor to PROGMEM first (frees ~150 B).
 #define FFB_AXIS_COUNT 2 // Number of axes for force feedback
 #define SIZE_EFFECT sizeof(TEffectState) // Size of the effect state structure
 #define MEMORY_SIZE (uint16_t)(MAX_EFFECTS * SIZE_EFFECT) // Total memory required for effects
@@ -227,22 +231,24 @@ typedef struct __attribute__((packed)) {
 
 
 
-// Structure for effect conditions
+// Structure for effect conditions (all values normalised to -10000..10000, 0..10000 for
+// saturation/deadband, matching the Set Condition report descriptor)
 typedef struct {
-	int16_t cpOffset; // -128..127
-	int16_t  positiveCoefficient; // -128..127
-	int16_t  negativeCoefficient; // -128..127
-	uint16_t positiveSaturation;  // -128..127
-	uint16_t negativeSaturation;  // -128..127
-	uint16_t deadBand;  // 0..255
+	int16_t cpOffset;             // -10000..10000
+	int16_t positiveCoefficient;  // -10000..10000
+	int16_t negativeCoefficient;  // -10000..10000
+	uint16_t positiveSaturation;  // 0..10000
+	uint16_t negativeSaturation;  // 0..10000
+	uint16_t deadBand;            // 0..10000
 } TEffectCondition;
 
 // Structure for maintaining the state of an effect
 typedef struct {
     volatile uint8_t state; // Current state of the effect
     uint8_t effectType; // Type of effect
-    int8_t offset; // Offset for the effect
+    int16_t offset; // Periodic baseline offset (-10000..10000). A3: was int8_t -> truncated.
     uint8_t gain; // Gain value for the effect
+    uint8_t triggerButton; // B3: 1..8 = play only while that button is held; 0 = no trigger
     int16_t attackLevel; // Attack level for the effect
     int16_t fadeLevel; // Fade level for the effect
     int16_t magnitude; // Magnitude of the effect
@@ -250,7 +256,7 @@ typedef struct {
     uint8_t direction[FFB_AXIS_COUNT]; // Direction angles for force feedback
     TEffectCondition conditions[FFB_AXIS_COUNT]; // Conditions for the effect on each axis
 
-    uint16_t phase; // Current phase of the effect (0..255)
+    uint16_t phase; // Current phase of the effect (0..35999, centi-degrees)
     int16_t startMagnitude; // Starting magnitude for ramp or effects
     int16_t endMagnitude; // Ending magnitude for ramp or effects
     uint16_t period; // Period of the effect (0..32767 ms)
@@ -260,8 +266,17 @@ typedef struct {
     uint16_t elapsedTime; // Elapsed time since the effect started
     uint16_t totalDuration; // Total duration of the effect including fade and attack times
     uint16_t startDelay; // Delay before starting the effect
-    uint64_t startTime; // Timestamp when the effect started
+    uint32_t startTime; // millis() when the effect started (uint32 is ~49 days, plenty)
     uint8_t loopCount; // Number of times to loop the effect
     uint8_t conditionReportsCount; // Count of condition reports for the effect
 } TEffectState;
+
+#ifdef FFB_SERIAL_TRACE
+// FFB protocol trace helpers (defined in PIDReportHandler.cpp) - see defines.h for the
+// line format. Kept out-of-line so the call sites don't each inline the Serial calls.
+void ftTag(char tag, long v);  // line prefix: tag, then value, then ','
+void ftV(long v);              // value, then ','
+void ftEnd(long v);            // value, then newline
+#endif
+
 #endif

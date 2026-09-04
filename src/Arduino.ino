@@ -106,16 +106,16 @@ void arduinoSetup() {
   Enables the motordrivers
 ****************************/
 void enableMotors() {
-  digitalWrite(PITCH_EN, HIGH);
-  digitalWrite(ROLL_EN, HIGH);
+  axis[MEM_ROLL].setArmed(true);   // arms + drives its EN pin high
+  axis[MEM_PITCH].setArmed(true);
 }  //EnableMotors
 
 /***************************
   Disables the motordrivers
 ****************************/
 void disableMotors() {
-  digitalWrite(PITCH_EN, LOW);
-  digitalWrite(ROLL_EN, LOW);
+  axis[MEM_ROLL].setArmed(false);  // disarms + releases its EN pin (bridge off)
+  axis[MEM_PITCH].setArmed(false);
 
   analogWrite(ROLL_L_PWM, 0);  // stop left
   analogWrite(ROLL_R_PWM, 0);  // stop right

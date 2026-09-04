@@ -86,10 +86,65 @@ BeepManager beepManager(BUZZER_PIN);  // Instanciate the BeepManager
 // variables for calculation
 unsigned long lastEffectsUpdate = 0;  // count millis for next effect calculation
 
+#ifdef FFB_SERIAL_TRACE
+// ---- stack high-water mark -------------------------------------------------------
+// Flash has been budgeted all along; RAM never was. 2125 B of 2560 is static, so only
+// ~435 B is shared between the main-loop force chain (loop -> updateEffects -> getForce
+// -> forceCalculator -> getEffectForce -> ConditionForceCalculator/ApplyEnvelope, float
+// temps throughout) and a USB ISR that nests ~6 frames on top of it (USB_COM_vect ->
+// USB_Setup -> PluggableUSB().setup -> DynamicHID_::setup -> SetReport -> CreateNewEffect).
+// TelemFFB's startup is exactly when that ISR path is busiest - and it is when the two
+// reverted optimisations (Rev 8.13, Rev 8.15) both reset the MCU.
+//
+// paintStack() fills the gap above .bss with a known byte; stackFreeMin() counts how many
+// are still untouched, i.e. the closest the stack has ever come to .bss. A value near 0
+// means we are overflowing into .bss and the resets are explained.
+extern uint8_t __bss_end;
+#define STACK_PAINT_BYTE 0xC5
+
+static void paintStack()
+{
+  uint8_t *p   = &__bss_end;
+  uint8_t *top = (uint8_t *)SP - 64;   // margin: never touch our own frame
+  while (p < top) *p++ = STACK_PAINT_BYTE;
+}
+
+uint16_t stackFreeMin()
+{
+  const uint8_t *p = &__bss_end;
+  uint16_t n = 0;
+  while (n < 2048 && *p == STACK_PAINT_BYTE) { n++; p++; }
+  return n;
+}
+
+// Previous session's watermark, captured at boot before the slot is re-armed. Reported in
+// every P line, so after a crash the FIRST lines of the next session say how close the
+// stack came in the session that died - which a live reading can never tell us.
+uint16_t stackPrevSession = 0xFFFF;
+static uint16_t stackMinSeen = 0xFFFF;
+
+// Called on a timer, not every pass: stackFreeMin() scans up to 434 B (~80 us).
+static void recordStackWatermark()
+{
+  uint16_t now = stackFreeMin();
+  if (now < stackMinSeen)
+  {
+    stackMinSeen = now;
+    EEPROM.put(EEPROM_STACK_WATERMARK_INDEX, now);   // put() skips unchanged bytes
+  }
+}
+// ----------------------------------------------------------------------------------
+
+// Main-loop passes since the last 'F'/'P' trace line. x4 = loop Hz. This is the ceiling on
+// how fast host effect reports can be accepted: the OUT endpoint is double-banked, so
+// each drain point takes at most 2 reports per pass.
+volatile uint16_t loopCount = 0;
+#endif
+
 typedef struct {
-int16_t lastPos;                        // X value from last loop
-int16_t lastVel;                     // Velocity X value from last loop
-int16_t lastAccel;                   // Acceleration X value from last loop
+int16_t lastPos;                        // position from last loop
+int16_t lastVel;                        // velocity from last loop (counts/ms << VEL_SHIFT, clamped)
+int16_t lastAccel;                      // acceleration from last loop (clamped)
 } PhysicsData;
 
 PhysicsData physicsData[MEM_AXES];
@@ -107,8 +162,8 @@ Joystick_ Joystick(            // define Joystick parameters
 Multiplexer mux(&Joystick);   // class for mutiplexers
 
 Axis axis[MEM_AXES] ={
-  Axis(ROLL_L_PWM, ROLL_R_PWM, true, &rollEncoder, ROLL_CHANNEL, &i2c_mux, &mux, &beepManager, adjPwmMin[MEM_ROLL]),
-  Axis(PITCH_U_PWM, PITCH_D_PWM, false, &pitchEncoder, PITCH_CHANNEL, &i2c_mux, &mux, &beepManager, adjPwmMin[MEM_PITCH])
+  Axis(ROLL_L_PWM, ROLL_R_PWM, ROLL_EN, true, &rollEncoder, ROLL_CHANNEL, &i2c_mux, &mux, &beepManager, adjPwmMin[MEM_ROLL]),
+  Axis(PITCH_U_PWM, PITCH_D_PWM, PITCH_EN, false, &pitchEncoder, PITCH_CHANNEL, &i2c_mux, &mux, &beepManager, adjPwmMin[MEM_PITCH])
 };
 
 Communication comm(&beepManager, gains, adjPwmMin, axis, maxVelocityPcnt);
@@ -116,10 +171,44 @@ Communication comm(&beepManager, gains, adjPwmMin, axis, maxVelocityPcnt);
 /********************************
      initial setup
 *******************************/
+// Explicit prototypes. Arduino's .ino auto-prototype generator is fragile: adding the
+// stack-instrumentation block above was enough to make it stop emitting these entirely -
+// the profile build still compiled, the release build did not ("not declared in this
+// scope" for functions in this very file). Declaring them by hand removes the dependency.
+void arduinoSetup();          // Arduino.ino
+void enableMotors();          // Arduino.ino
+void disableMotors();         // Arduino.ino
+void setupJoystick();         // joystick.ino
+void setupDefaults();         // joystick.ino
+void setRangeJoystick();      // joystick.ino
+void updateEffects(bool recalculate);   // joystick.ino
+bool isEepromDataValid();     // EEPROM.ino
+void writeSettingsToEeprom(); // EEPROM.ino
+void readSettingsFromEeprom();// EEPROM.ino
+void fullCalibration();       // this file, defined below setup()
+void readEEPromCalib();       // this file
+void failedCalibration();     // this file
+void readEncoderPos();        // this file
+
 void setup() {
+#ifdef FFB_SERIAL_TRACE
+  paintStack();     // must be first: everything below this uses stack
+  // Capture what the PREVIOUS session got down to, then re-arm the slot.
+  EEPROM.get(EEPROM_STACK_WATERMARK_INDEX, stackPrevSession);
+  EEPROM.put(EEPROM_STACK_WATERMARK_INDEX, (uint16_t)0xFFFF);
+#endif
   arduinoSetup();   // setup for Arduino itself (pins)
   Serial.begin(SERIAL_BAUD);  // init serial
+  // Cap Stream::readBytes(). Default is 1000 ms: a single stray byte on the CDC port
+  // (COM-port enumeration, the VPForce Configurator scanning ports, a leftover serial
+  // monitor) makes serialEvent()'s 4-byte read block that long every 100 ms -> the whole
+  // FFB loop freezes for ~1 s at a time. A real command's bytes arrive within ~1 ms.
+  Serial.setTimeout(15);
   Wire.begin(); // I2C Wire communication
+  Wire.setClock(400000); // 400 kHz fast-mode: AS5600 + TCA9548 both support it.
+                         // Two muxed encoder reads dominate loop(); at 100 kHz they
+                         // capped the force/torque update near ~1 kHz. Revert to
+                         // 100000 if long encoder wiring / weak pull-ups misbehave.
 
   i2c_mux.begin();
   i2c_mux.selectChannel(ROLL_CHANNEL);
@@ -185,14 +274,32 @@ void loop() {
     }
     nextUpdateMillis = currentMillis + 100;
   }
+  // Drain the USB OUT endpoint at several points in the pass, not just once inside
+  // updateEffects(). The endpoint is double-banked (EP_DOUBLE_64), so ONE drain point
+  // can accept at most 2 reports per loop pass - the host refills the banks on 1 ms USB
+  // frame boundaries but nothing looks at them until the next pass. That made effect
+  // delivery scale with the LOOP RATE (measured ~200 reports/s), so once TelemFFB wanted
+  // more than that the surplus queued host-side and the backlog grew for as long as the
+  // demand lasted: latency that builds with time in flight and with effect count, and a
+  // stop-on-pause that lands seconds late. The I2C encoder/button reads below are the
+  // slow part of the pass, so draining around them is where it pays.
+  Joystick.getUSBPID();                     // drain OUT endpoint
   mux.updateJoystickButtons();              // get Joystick buttons
+  Joystick.getUSBPID();                     // drain again - updateJoystickButtons is slow (I2C mux)
   readEncoderPos();
   Joystick.sendState(); // send joystick values to system
-  updateEffects(true);                      // update/calculate new effect paraeters
+  updateEffects(true);                      // update/calculate new effect paraeters (drains again)
 
   for (byte i = MEM_ROLL; i <= MEM_PITCH; i++) {
     axis[i].applyForce(forces[i], encoderPos[i], physicsData[i].lastVel);
   }
+#ifdef FFB_SERIAL_TRACE
+  loopCount++;
+  { // ~50 ms: fine enough to catch a dive shortly before a crash, cheap enough to ignore
+    static unsigned long swLast = 0;
+    if (currentMillis - swLast >= 50) { swLast = currentMillis; recordStackWatermark(); }
+  }   // reported by the ~4 Hz F line in forceCalculator()
+#endif
   // Serial.println(millis() - currentMillis);
 #endif
 } // loop

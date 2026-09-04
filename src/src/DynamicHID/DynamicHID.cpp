@@ -70,7 +70,9 @@ int DynamicHID_::getDescriptor(USBSetup& setup)
     int total = 0;
     DynamicHIDSubDescriptor* node;
     for (node = rootNode; node; node = node->next) {
-        int res = USB_SendControl(0, node->data, node->length); // Send the descriptor to the host.
+        // node->data may be RAM or PROGMEM (inProgMem). The joystick descriptor moved to
+        // PROGMEM to reclaim its 150 B static buffer; pid_data below is always PROGMEM.
+        int res = USB_SendControl(node->inProgMem ? TRANSFER_PGM : 0, node->data, node->length);
         if (res == -1)
             return -1; // Abort on error.
         total += res;
@@ -122,6 +124,18 @@ void DynamicHID_::AppendDescriptor(DynamicHIDSubDescriptor *node)
 // Sends a HID report to the host.
 int DynamicHID_::SendReport(uint8_t id, const void* data, int len)
 {
+    // USB_Send() is BLOCKING (the core's own header says so): while the IN bank still
+    // holds the previous report - the host has not polled it yet - it spins on delay(1)
+    // for up to 250 ms. sendState() runs in the main loop *ahead of* updateEffects(), so
+    // a stalled joystick report also stalls RecvfromUsb() (host effect Start/Stop/params
+    // pile up unprocessed) and the motor update behind it.
+    //
+    // A joystick position report is worthless the moment a newer one exists, so drop it
+    // instead of waiting: the next loop pass sends fresher data. This also self-clamps
+    // the report rate to the host's 1 kHz polling with zero dead time, no magic constant.
+    if (USB_SendSpace(PID_ENDPOINT_IN) < (uint8_t)(len + 1))
+        return -1;   // bank busy - skip this frame's position, never block the FFB loop
+
     // Create an array containing the report ID and the data.
     uint8_t p[len + 1];
     p[0] = id;
@@ -145,13 +159,23 @@ int DynamicHID_::RecvData(byte* data)
 // This function checks if data is available and reads it when present.
 void DynamicHID_::RecvfromUsb()
 {
-    if (usb_Available() > 0) {
-        uint8_t out_ffbdata[64]; // Data buffer.
-        uint16_t len = USB_Recv(PID_ENDPOINT_OUT, &out_ffbdata, 64); // Read up to 64 bytes.
-        if (len >= 0) {
-            // Pass the received data to the PID handler for further processing.
-            pidReportHandler.UppackUsbData(out_ffbdata, len);
-        }
+    // Drain the OUT endpoint. TelemFFB (and any rich FFB host) streams ONE parameter
+    // report per active effect per telemetry frame - 10-20 reports arriving together.
+    // Processing a single report per main-loop pass lets that batch back up in the
+    // endpoint FIFO, so effect parameters land late and in bursts -> forces feel jerky
+    // and effects seem to randomly not take. The guard bounds the worst case (a flood)
+    // so the FFB path can't starve the encoder read / motor PWM.
+    uint8_t out_ffbdata[64]; // Data buffer.
+    // Guard bounds a pathological flood; 64 clears a full per-frame burst (TelemFFB can
+    // resend Set Effect + Set Constant Force + Set Periodic for ~15-18 effects at once)
+    // in a single pass so nothing carries over to back up behind the next frame.
+    for (uint8_t guard = 0; guard < 64 && usb_Available() > 0; ++guard) {
+        int len = USB_Recv(PID_ENDPOINT_OUT, &out_ffbdata, 64); // one report per read
+        if (len <= 0) break;   // D4: was `uint16_t len; if (len >= 0)` - always true, -1 wrapped to 65535
+        pidReportHandler.UppackUsbData(out_ffbdata, (uint16_t)len);
+#ifdef FFB_SERIAL_TRACE
+        pidReportHandler.rxReportCount++;
+#endif
     }
 }
 
@@ -176,12 +200,14 @@ bool DynamicHID_::GetReport(USBSetup& setup) {
             return true;
         }
         if (report_id == 7) {
-            // Send information about the PID memory pool.
+            // Send information about the PID memory pool. This device is device-managed
+            // (memoryManagement bit0), so ramPoolSize is informational - Windows tracks
+            // capacity via RAM Pool Available in the Block Load reports (see C1).
             USB_FFBReport_PIDPool_Feature_Data_t ans;
             ans.reportId = report_id;
             ans.ramPoolSize = 0xffff;
             ans.maxSimultaneousEffects = MAX_EFFECTS;
-            ans.memoryManagement = 3;
+            ans.memoryManagement = 1;   // F3: Device Managed Pool only (not Shared Parameter Blocks)
             USB_SendControl(TRANSFER_RELEASE, &ans, sizeof(USB_FFBReport_PIDPool_Feature_Data_t));
             return true;
         }
