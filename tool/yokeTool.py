@@ -103,6 +103,30 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pushButton_scanPorts.setEnabled(True)
         self.statusbar.showMessage(f"{self.ser.port} disconnected", 0)
 
+    # Ask the device which firmware it is running.  Optional by design: firmware
+    # predating the <BI> command never answers, so this gets a short timeout of its
+    # own and an empty result is not an error - an older yoke still connects, just
+    # without a build shown.
+    #
+    # The device only speaks when spoken to on this port.  An earlier firmware
+    # printed its build on a 5 s timer instead, which landed in the middle of this
+    # conversation; hence a query rather than a banner.
+    def readBuildInfo(self):
+        try:
+            saved = self.ser.timeout
+            self.ser.timeout = 0.3
+            try:
+                self.ser.reset_input_buffer()
+                self.ser.write(b'<BI>')
+                line = self.ser.read_until(b'\n')
+            finally:
+                self.ser.timeout = saved
+        except serial.SerialException:
+            return ''
+        if not line.startswith(b'<BI>'):
+            return ''
+        return line[4:].strip().decode('ascii', 'replace')
+
     # Read settings from device
     def readSettings(self):       
         try:
@@ -142,7 +166,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.comboBox_usbPort.setEnabled(False)
                 self.pushButton_scanPorts.setEnabled(False)
 
-                self.statusbar.showMessage(f"Connected {self.ser.port}, device settings read", 0)
+                build = self.readBuildInfo()
+                msg = f"Connected {self.ser.port}, device settings read"
+                if build:
+                    msg += f"  |  firmware {build}"
+                self.statusbar.showMessage(msg, 0)
             else:
                 self.statusbar.showMessage(f"Illegal packet data! Skipping!", 5000)
         except struct.error as err:

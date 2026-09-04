@@ -931,7 +931,7 @@
                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Start PWM power to apply when FFB force is applied. This is the min motor power where inherit friction in the hardware components are just overcome.&lt;/p&gt;&lt;p&gt;To little and the axis will not respond to small forces. To much and you get oscillations around the middle point in a spring force.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="maximum">
-               <number>50</number>
+               <number>60</number>
               </property>
               <property name="pageStep">
                <number>5</number>
@@ -2083,7 +2083,7 @@
                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Start PWM power to apply when FFB force is applied. This is the min motor power where inherit friction in the hardware components are just overcome.&lt;/p&gt;&lt;p&gt;To little and the axis will not respond to small forces. To much and you get oscillations around the middle point in a spring force.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="maximum">
-               <number>50</number>
+               <number>60</number>
               </property>
               <property name="pageStep">
                <number>5</number>
