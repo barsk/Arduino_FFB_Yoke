@@ -206,6 +206,27 @@ typedef struct __attribute__((packed)) {
     uint16_t samplePeriod; // Period between samples (0..32767 ms)
 } USB_FFBReport_SetCustomForce_Output_Data_t;
 
+// D5: the longest OUTPUT report struct that UppackUsbData casts the receive buffer to.
+// RecvfromUsb zeroes the buffer up to here so a short report reads zeros rather than the
+// previous report's bytes; nothing is ever read past it, so zeroing the rest of the 64 B
+// buffer was wasted work. The asserts below fail the BUILD if a struct outgrows the bound
+// - which is the whole point, since a silent under-zero would restore the original bug.
+#define PID_MAX_OUT_REPORT 16
+#define PID_OUT_FITS(T) static_assert(sizeof(T) <= PID_MAX_OUT_REPORT, #T " outgrew PID_MAX_OUT_REPORT")
+PID_OUT_FITS(USB_FFBReport_SetEffect_Output_Data_t);
+PID_OUT_FITS(USB_FFBReport_SetEnvelope_Output_Data_t);
+PID_OUT_FITS(USB_FFBReport_SetCondition_Output_Data_t);
+PID_OUT_FITS(USB_FFBReport_SetPeriodic_Output_Data_t);
+PID_OUT_FITS(USB_FFBReport_SetConstantForce_Output_Data_t);
+PID_OUT_FITS(USB_FFBReport_SetRampForce_Output_Data_t);
+PID_OUT_FITS(USB_FFBReport_SetCustomForceData_Output_Data_t);
+PID_OUT_FITS(USB_FFBReport_SetDownloadForceSample_Output_Data_t);
+PID_OUT_FITS(USB_FFBReport_EffectOperation_Output_Data_t);
+PID_OUT_FITS(USB_FFBReport_BlockFree_Output_Data_t);
+PID_OUT_FITS(USB_FFBReport_DeviceControl_Output_Data_t);
+PID_OUT_FITS(USB_FFBReport_DeviceGain_Output_Data_t);
+PID_OUT_FITS(USB_FFBReport_SetCustomForce_Output_Data_t);
+
 // Feature Reports for managing effects
 typedef struct __attribute__((packed)) {
     uint8_t reportId; // Report ID (5)

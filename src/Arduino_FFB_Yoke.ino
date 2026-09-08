@@ -86,7 +86,7 @@ BeepManager beepManager(BUZZER_PIN);  // Instanciate the BeepManager
 // variables for calculation
 unsigned long lastEffectsUpdate = 0;  // count millis for next effect calculation
 
-#ifdef FFB_SERIAL_TRACE
+#if defined(FFB_SERIAL_TRACE) || defined(FFB_STACK_TRACE)
 // ---- stack high-water mark -------------------------------------------------------
 // Flash has been budgeted all along; RAM never was. 2125 B of 2560 is static, so only
 // ~435 B is shared between the main-loop force chain (loop -> updateEffects -> getForce
@@ -139,6 +139,16 @@ static void recordStackWatermark()
 // how fast host effect reports can be accepted: the OUT endpoint is double-banked, so
 // each drain point takes at most 2 reports per pass.
 volatile uint16_t loopCount = 0;
+uint8_t resetFlags = 0;   // MCUSR as latched at boot; see setup()
+
+// An interrupt whose vector is not populated lands on avr-libc's __bad_interrupt, which
+// JUMPS TO ADDRESS 0. That restarts the sketch, resets uptime, sets no MCUSR flag and
+// leaves the stack untouched - i.e. it produces exactly the signature we are looking at,
+// and it is the commonest cause of it on AVR. Defining BADISR_vect replaces that jump
+// with this handler, so instead of restarting, the yoke survives and counts the event.
+// If the crash disappears and this counter climbs, the fault is named.
+volatile uint16_t badIsrCount = 0;
+ISR(BADISR_vect) { badIsrCount++; }
 #endif
 
 typedef struct {
@@ -191,7 +201,17 @@ void failedCalibration();     // this file
 void readEncoderPos();        // this file
 
 void setup() {
-#ifdef FFB_SERIAL_TRACE
+#if defined(FFB_SERIAL_TRACE) || defined(FFB_STACK_TRACE)
+  // MCUSR latches WHY the last reset happened, and it is the one fact that separates the
+  // two remaining candidates: a watchdog fire (the Arduino CDC core arms a 120 ms WDT for
+  // the 1200-baud bootloader touch - the only watchdog in the system) from a jump to 0
+  // caused by a smashed return address, which sets no flag at all. Read it before the
+  // register can be disturbed, then clear it so the NEXT reset reports only itself.
+  //   bit0 PORF power-on   bit1 EXTRF external   bit2 BORF brown-out   bit3 WDRF watchdog
+  // A Caterina bootloader may consume it first; a constant 0 here means exactly that, and
+  // that is worth knowing too.
+  resetFlags = MCUSR;
+  MCUSR = 0;
   paintStack();     // must be first: everything below this uses stack
   // Capture what the PREVIOUS session got down to, then re-arm the slot.
   EEPROM.get(EEPROM_STACK_WATERMARK_INDEX, stackPrevSession);
@@ -293,12 +313,36 @@ void loop() {
   for (byte i = MEM_ROLL; i <= MEM_PITCH; i++) {
     axis[i].applyForce(forces[i], encoderPos[i], physicsData[i].lastVel);
   }
-#ifdef FFB_SERIAL_TRACE
+#if defined(FFB_SERIAL_TRACE) || defined(FFB_STACK_TRACE)
   loopCount++;
   { // ~50 ms: fine enough to catch a dive shortly before a crash, cheap enough to ignore
     static unsigned long swLast = 0;
     if (currentMillis - swLast >= 50) { swLast = currentMillis; recordStackWatermark(); }
   }   // reported by the ~4 Hz F line in forceCalculator()
+#endif
+#ifdef FFB_STACK_TRACE
+  { // The S line: the same two stack figures the F line carries, but emitted from loop()
+    // instead of from inside getEffectForce(). The F line only appears while a host is
+    // actually driving effects - which is exactly not the case in the seconds after a
+    // reset, when prevMin is the one number worth having. This one repeats regardless,
+    // so the terminal can be attached at any time instead of being raced against boot.
+    static unsigned long stLast = 0;
+    if (currentMillis - stLast >= FFB_STACK_TRACE_MS)
+    {
+      stLast = currentMillis;
+      Serial.write('S');
+      Serial.print(stackFreeMin());              Serial.write(',');
+      Serial.print(stackPrevSession);            Serial.write(',');
+      Serial.print(currentMillis / 1000UL);      // uptime s: a reset shows as this dropping
+      Serial.write(',');
+      Serial.print(resetFlags);                  // why the LAST reset happened - see setup()
+      Serial.write(',');
+      Serial.print(badIsrCount);                 // unhandled interrupt vectors caught, not taken
+      Serial.write(',');
+      { extern volatile uint16_t shortReportCount;   // D5, PIDReportHandler.cpp
+        Serial.println(shortReportCount); }      // reports shorter than the struct they feed
+    }
+  }
 #endif
   // Serial.println(millis() - currentMillis);
 #endif

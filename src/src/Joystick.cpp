@@ -110,7 +110,7 @@ static int16_t sinQ15i(uint16_t phase16)
 // Joystick half of the HID report descriptor: 12 buttons + 1 hat + X/Y (16-bit each),
 // Report ID 1. This is exactly what the stock Matthew Heironimus runtime builder emitted
 // for Joystick_(0x01, JOYSTICK_TYPE_JOYSTICK, 12, 1, true, true, false) - captured once
-// (reference/gen_joydesc.py) and frozen here so ~1 KB of flash + 150 B of static RAM
+// (tool/gen_joydesc.py) and frozen here so ~1 KB of flash + 150 B of static RAM
 // (the old build buffer) are not spent re-deriving a constant at every boot. The
 // COLLECTION (Application) opened here is deliberately left unclosed - the trailing 0xC0
 // of pidReportDescriptor closes it (the two halves are concatenated by getDescriptor()).
@@ -162,7 +162,7 @@ Joystick_::Joystick_(
     // yoke, so the runtime byte-by-byte builder that used to live here - writing a 150 B
     // static-RAM buffer that then stayed allocated forever - was re-deriving a constant
     // at every boot. Dropping it: -150 B RAM, -314 B flash. Regenerate the array with
-    // reference/gen_joydesc.py if the button / hat / axis layout ever changes (the
+    // tool/gen_joydesc.py if the button / hat / axis layout ever changes (the
     // total descriptor size feeds D_HIDREPORT, so it must match what the host expects).
 	uint8_t axisCount = (includeXAxis == true)
 		+  (includeYAxis == true)
@@ -354,7 +354,14 @@ void Joystick_::forceCalculator(int16_t* forces) {
     {
         for (int axis = 0; axis < FFB_AXIS_COUNT; ++axis)
         {
-			acc[axis] = (int32_t)(NormalizeRange(m_effect_params[axis].springPosition, m_effect_params[axis].springMaxPosition) * -10000.0f * m_gains[axis].defaultSpringGain * GAIN_PCT * m_gains[axis].totalGain * GAIN_PCT);
+			// E1: totalGain is applied ONCE, by the common devGain stage further down that
+			// scales acc[] for every path. It used to be multiplied in here as well, so the
+			// default spring alone came out at totalGain SQUARED - 0.49 on roll (gain 70)
+			// and 0.20 on pitch (gain 45). A 100 % default spring therefore delivered half
+			// strength on roll and a fifth on pitch, while a host-created spring - which
+			// only ever picks up totalGain at that later stage - felt correct. That
+			// mismatch is what made the tool's slider look broken next to FFBTestTool.
+			acc[axis] = (int32_t)(NormalizeRange(m_effect_params[axis].springPosition, m_effect_params[axis].springMaxPosition) * -10000.0f * m_gains[axis].defaultSpringGain * GAIN_PCT);
 
 #ifdef _serialPrintForces
 			Serial.print(axis);

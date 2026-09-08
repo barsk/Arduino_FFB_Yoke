@@ -172,6 +172,22 @@ void DynamicHID_::RecvfromUsb()
     for (uint8_t guard = 0; guard < 64 && usb_Available() > 0; ++guard) {
         int len = USB_Recv(PID_ENDPOINT_OUT, &out_ffbdata, 64); // one report per read
         if (len <= 0) break;   // D4: was `uint16_t len; if (len >= 0)` - always true, -1 wrapped to 65535
+        // D5: every handler in UppackUsbData casts this buffer to a struct that may be
+        // longer than the report actually received, and reads the difference in as effect
+        // parameters. The read stays inside the buffer so nothing is corrupted - it simply
+        // consumes whatever the previous iteration left there, silently and with no
+        // repeatability. Zeroing the tail makes that case defined and harmless.
+        // Deliberately NOT a rejecting length check: if the report descriptor declares
+        // fewer bytes than one of those structs, rejecting would silently disable that
+        // effect type, and this firmware has had enough silent behaviour changes.
+        // UppackUsbData counts mismatches (shortReportCount) so they can be measured
+        // before anything starts refusing reports.
+        // Only up to the longest report struct: past PID_MAX_OUT_REPORT no handler ever
+        // reads, so zeroing the rest of the 64 B buffer was work for nothing. Measured
+        // 2026-09-08: shortReportCount stayed 0 across 870 s of TelemFFB with effects, so
+        // this path does not currently fire at all - it is here for a host that truncates.
+        if ((uint8_t)len < PID_MAX_OUT_REPORT)
+            memset(out_ffbdata + len, 0, PID_MAX_OUT_REPORT - (uint8_t)len);
         pidReportHandler.UppackUsbData(out_ffbdata, (uint16_t)len);
 #ifdef FFB_SERIAL_TRACE
         pidReportHandler.rxReportCount++;

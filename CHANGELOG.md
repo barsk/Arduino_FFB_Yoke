@@ -4,7 +4,7 @@ Notable changes to the SimInvent FFB Yoke firmware and the Yoke Tool.
 
 Versions here describe the **firmware**; the Yoke Tool ships alongside it and is
 noted where it changed. Figures are measured on the SparkFun Pro Micro
-(ATmega32u4) build unless stated otherwise.
+(ATmega32u4) build .
 
 ---
 
@@ -14,7 +14,7 @@ Release candidate. The headline is that the force loop runs about **twice as
 fast**, multi-second FFB command lag is gone, and several effect bugs that only
 appeared under a full sim effect load are fixed.
 
-Most of this came out of driving the yoke from TelemFFB over DirectInput, which
+Most of this came out of driving the yoke from SimInvent-TelemFFB over DirectInput, which
 stacks 10-17 simultaneous effects and reached problems that bench testing with
 one or two effects never did.
 
@@ -33,28 +33,31 @@ one or two effects never did.
   without shrinking the reported HID axis range. Travel limits and soft lock are
   now handled uniformly for both axes, and the HID axis range and the spring's
   centre are set in lock-step so they cannot drift apart again.
-- **PID layer reviewed against the USB PID 1.0 specification** and its findings
-  implemented. Full audit and per-item status in
-  `reference/PID-implementation-review.md`.
-- **Trigger-button gating fixed.** DirectInput sends `triggerButton = 0xFF`
-  (`DIEB_NOTRIGGER`) on ordinary effects. That was read as "button 255 is held",
-  which suppressed every effect. Only a real button index gates playback now.
-- **Triangle and Sawtooth** agree in sign with Constant, Sine and Square, and are
-  guarded against a zero period.
-- **Effect direction follows the DirectInput convention** - an effect's direction
-  is where the force *comes from*, and the applied force is its opposite.
-  Verified against a spec-compliant wheel and against TelemFFB's own usage.
+- **The default spring was scaled by total gain twice.** The Settings Tool's default
+  spring slider ran through `totalGain` inside its own calculation *and* again in the
+  common gain stage that scales every effect, so it delivered **gain squared** - 49% on
+  roll (gain 70) and 20% on pitch (gain 45) at a slider setting of 100%. Host-created
+  spring effects pick up total gain only once and were unaffected, which is why the same
+  spring felt right from a test tool and weak from the tool's own slider. Every other
+  effect type applies only its own type gain; the default spring was the sole exception.
+  **Upgrading: the default spring is now stronger** - about 1.4x on roll and 2.2x on
+  pitch - so a setting that felt right before is roughly the old value multiplied by that
+  axis's total gain (pitch 100% -> about 45%).
+- **PID layer reviewed against the USB PID 1.0 specification** and all discrepancys fixed.
+- **Triangle and Sawtooth** agree in direction with Constant, Sine and Square.
+- **Effect direction now correctly follow the DirectInput convention** - an effect's direction
+  is where the force *comes from*, and the applied force is its opposite. This was previously handled **inverted**.
+  Verified against a spec-compliant commercial FFB wheel and against SimInvent-TelemFFB's own usage.
 
 ### Latency
 
 - **Multi-second FFB command lag removed.** Latency grew with time in flight and
-  with effect count, and a stop-on-pause could land seconds late. Cause: the USB
+  with high effect count, and could cause seconds of lag. Cause: the USB
   interrupt OUT endpoint is double-banked, so one `RecvfromUsb()` accepts at most
   two reports - and it ran **once per main-loop pass**. Delivery was capped at
   twice the loop rate, so any surplus queued host-side and grew for as long as
   the demand lasted. The endpoint is now drained at three points per pass, around
   the slow I2C encoder and button reads.
-  *User-confirmed: "lag is gone, pausing also stops the effects instantly."*
 - **A stalled position report can no longer stall the force loop.** The Arduino
   core's `USB_Send()` blocks - it spins in `delay(1)` for up to 250 ms while the
   IN bank is still full - and joystick position was sent ahead of the effect
@@ -96,12 +99,53 @@ Force-loop rate at a matched effect count, which is also the FFB update rate:
 
 ### Motor drive
 
-- **Low-end linearity.** PWM stepped straight to `pwmMin` (about 10% drive) the
-  instant any force appeared, so small effects were over-driven and the axis
-  broke loose with a lurch. Below a configurable knee the mapping now ramps from
-  a fraction of `pwmMin`, so weak effects feel weak. Tunable in `defines.h`
-  (`PWM_KNEE_FORCE`, `PWM_KNEE_FLOOR_PCT`); a knee of 0 restores the previous
-  behaviour. *Bench-tuned, still being evaluated.*
+Four changes attacking the same problem from different sides: what the axis does
+at very small forces, where dry friction rather than the force command decides
+what the pilot feels. This adresses the problems associated with the "Motor Start PWM" 
+value from the Yoke Settings Tool. When clamping the usable pwm values to start from a 
+higher value to counter the non linear response of a 775 DC motor it means we solve the 
+problem of getting the motor to move at low stimuli, but we also get a raised response 
+for the whole lower end of forces. This means small forces get unrealistically amplified, 
+strong forces work fine. The settings below are used to counter this and create a more
+linear feel in the lower force range.
+
+- **Low-end linearity: the breakaway knee.** PWM stepped straight to `pwmMin` 
+  (about 10% drive) the instant any force appeared - `map(|force|, 0, 10000,
+  pwmMin, 255)` - so a 5% effect asked for 10% drive and the axis broke static
+  friction with a lurch. Below `PWM_KNEE_FORCE` (1200 of 10000) the breakaway
+  offset now eases in on a quadratic curve instead of stepping; at and above the
+  knee the mapping is byte-for-byte the old one. `PWM_KNEE_FORCE 0` restores the
+  previous behaviour.
+- **`PWM_KNEE_FLOOR_PCT` trades the knee's dead zone against a pop.** Ramping the
+  offset from zero leaves the smallest commands below breakaway, so nothing moves
+  at all: on its own the knee swaps a hard grab for a soft dead zone. The floor
+  starts that ramp at a percentage of `pwmMin` instead. `0` is the full soft ramp
+  (widest dead zone, no pop), `100` is exactly the old hard step, and the default
+  `75` removes most of the dead zone while leaving a pop of only about
+  `pwmMin * 0.3` counts as the axis frees.
+- **Stribeck friction feedforward** (`ENABLE_FRICTION_FF`, on by default). Knee
+  and floor can only trade one artefact for the other, because neither knows
+  whether the axis is already moving. Static friction is far higher than kinetic,
+  so the real fix is velocity-aware: a boost in the *commanded* direction,
+  strongest at standstill and fading as `VS / (VS + |v|)`, using the velocity
+  `applyForce()` is already given - no new sensing. Weak effects break the axis
+  loose without a large standing offset, and the static-to-kinetic drop behind
+  the pop is covered too. `FRIC_FF_STATIC` (15 PWM counts) is the peak boost and
+  must stay below real breakaway or the axis can crawl or hum hands-off;
+  `FRIC_FF_VS` (150, in the speed limiter's `<< VEL_SHIFT` units) is the
+  half-boost velocity, deliberately low so the assist stays near standstill;
+  `FRIC_FF_MIN_FORCE` (40) gates out rounding noise.
+- **The bridge is released at idle** (`COAST_AT_IDLE`). With nothing commanded,
+  `driveMotor()` left both bridge inputs low - motor terminals shorted, so the
+  axis was electrically braked at rest. That dragged on every hand input and
+  fought all of the above. `EN` now goes low at zero command and the axis coasts.
+  Comment it out for the old always-braked behaviour, which settles more firmly
+  hands-off.
+
+All four are compile-time in `defines.h` rather than settings-struct fields, so
+retuning them costs no `FIRMWARE_VERSION` bump - promotable to the settings
+protocol later if they turn out to need per-unit tuning. *Bench-tuned on the
+775-motor build, still being evaluated.*
 
 ### Memory and build
 

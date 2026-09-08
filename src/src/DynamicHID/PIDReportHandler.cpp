@@ -310,9 +310,46 @@ void PIDReportHandler::CreateNewEffect(USB_FFBReport_CreateNewEffect_Feature_Dat
 }
 
 // Unpack USB data based on the incoming report ID
+#if defined(FFB_SERIAL_TRACE) || defined(FFB_STACK_TRACE)
+// D5: how many reports arrived shorter than the struct their report ID is cast to. The
+// dispatch does not reject those (see RecvfromUsb) - this is measurement only. Stays 0
+// across real use => the host and these structs agree, and a rejecting check would be
+// safe to add. Non-zero => the report descriptor and PIDReportType.h disagree, and THAT
+// is the bug, not the missing check. Table is sizeof()-driven so it cannot drift.
+volatile uint16_t shortReportCount = 0;
+static const uint8_t pidReportLen[] PROGMEM = {
+    0,                                                          //  0 unused
+    sizeof(USB_FFBReport_SetEffect_Output_Data_t),              //  1
+    sizeof(USB_FFBReport_SetEnvelope_Output_Data_t),            //  2
+    sizeof(USB_FFBReport_SetCondition_Output_Data_t),           //  3
+    sizeof(USB_FFBReport_SetPeriodic_Output_Data_t),            //  4
+    sizeof(USB_FFBReport_SetConstantForce_Output_Data_t),       //  5
+    sizeof(USB_FFBReport_SetRampForce_Output_Data_t),           //  6
+    sizeof(USB_FFBReport_SetCustomForceData_Output_Data_t),     //  7
+    sizeof(USB_FFBReport_SetDownloadForceSample_Output_Data_t), //  8
+    0,                                                          //  9 no-op
+    sizeof(USB_FFBReport_EffectOperation_Output_Data_t),        // 10
+    sizeof(USB_FFBReport_BlockFree_Output_Data_t),              // 11
+    sizeof(USB_FFBReport_DeviceControl_Output_Data_t),          // 12
+    sizeof(USB_FFBReport_DeviceGain_Output_Data_t),             // 13
+    sizeof(USB_FFBReport_SetCustomForce_Output_Data_t),         // 14
+};
+#endif
+
 void PIDReportHandler::UppackUsbData(uint8_t* data, uint16_t len)
 {
-    (void)len;  // D4: length is not used - the switch is on data[0]
+    // D5: data[1] is read unconditionally just below. USB_Recv never returns 0 here (the
+    // caller breaks on <= 0), but a 1-byte report would read the byte after it, so close
+    // the case rather than reason about it.
+    if (len < 2) return;
+
+#if defined(FFB_SERIAL_TRACE) || defined(FFB_STACK_TRACE)
+    if (data[0] < sizeof(pidReportLen))
+    {
+        uint8_t need = pgm_read_byte(&pidReportLen[data[0]]);
+        if (need && len < need) shortReportCount++;
+    }
+#endif
     // Extract the effect ID from the incoming data. Valid only for the parameter-block
     // reports (1..6) - reports 12/13 carry a control/gain byte here instead.
     uint8_t effectId = data[1];  // The effectBlockIndex is the second byte.

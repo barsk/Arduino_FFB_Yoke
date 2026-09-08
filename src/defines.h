@@ -83,6 +83,51 @@ https://github.com/barsk/Arduino_FFB_Yoke
                                             live reading can never come from a session that died.
                                             65535 = no previous value recorded.
 
+   S<stackFree>,<prevMin>,<upSec>,<mcusr>,<badIsr>  ~1 Hz  [FFB_STACK_TRACE]
+                                Same two stack figures as the F line, but emitted from the
+                                main loop rather than from inside getEffectForce(). The F
+                                line only appears while a host is driving effects, so after
+                                a reset - the moment prevMin actually matters - there is
+                                nothing to read until you reconnect the sim. This line
+                                repeats forever, so the terminal can be attached whenever.
+                                upSec = seconds since boot. Watch it: if it drops back to 0
+                                        the yoke reset, which is the event you are hunting.
+                                mcusr = MCUSR latched at boot, i.e. WHY the last reset was.
+                                        1 PORF power-on   2 EXTRF external (the reset pin)
+                                        4 BORF brown-out  8 WDRF watchdog
+                                        8 = the watchdog fired. The only WDT in the build is
+                                            the Arduino CDC core's 1200-baud bootloader touch
+                                            (CDC.cpp), so a WDRF here means either that path
+                                            armed it or something hung with it armed.
+                                        0 = no flag set, which is the interesting one: it
+                                            means execution reached address 0 without a real
+                                            reset - a smashed return address or a wild jump.
+                                            Note the stack paint CANNOT see that: it measures
+                                            how deep the stack went, not writes into a live
+                                            frame above SP.
+                                        1 = a genuine power cycle, i.e. you unplugged it.
+                                        CONTROL: unplug and replug. If that does not show 1,
+                                        the bootloader ate the flags and this field is mute.
+                                badIsr= interrupts taken on a vector with no handler. Without
+                                        a BADISR_vect handler avr-libc sends those to address
+                                        0, which restarts the sketch with no MCUSR flag and an
+                                        untouched stack - the exact signature above, and the
+                                        commonest cause of it on AVR. We define the handler,
+                                        so the yoke now survives and counts them instead.
+                                        Non-zero = found it. Still crashing with 0 = look
+                                        elsewhere (a smashed return address in the force path,
+                                        which the USB-ISR memset race can produce).
+                                FFB_STACK_TRACE is INDEPENDENT of FFB_SERIAL_TRACE. Use it
+                                alone to keep room for whatever code you are trying to
+                                reproduce a crash with: measured 28194 B flash / 2125 B RAM
+                                against 27606 / 2111 for the same build without it, so
+                                ~590 B and 14 B. Most of the flash is Print's integer
+                                formatting rather than the line itself - a release build
+                                never links it, so the first Serial.print(number) anywhere
+                                costs several hundred bytes and the rest are nearly free.
+                                Setting both flags has NOT been checked for fit: alone they
+                                are 28376 and 28194 of 28672, so together is unlikely.
+
  Reading it (effects not playing):
    - no C line          -> host never creates an effect (init/handshake failing upstream)
    - D shows 4 but not 3  -> stuck in default-spring; host must send StopAll
@@ -167,11 +212,15 @@ https://github.com/barsk/Arduino_FFB_Yoke
 #define EEPROM_DATA_INDEX 25              // eeprom start address for data (not used)
 
 
-// Post-mortem stack watermark (uint16, FFB_SERIAL_TRACE builds only). stackFreeMin() only
+// Post-mortem stack watermark (uint16; FFB_SERIAL_TRACE or FFB_STACK_TRACE). stackFreeMin() only
 // ever decreases, so persisting it lets a build that CRASHES still report how close the
 // stack got - the reading we can never read out of a dead session. Cleared at boot after
 // the previous session's value has been captured for reporting.
 #define EEPROM_STACK_WATERMARK_INDEX 30
+
+// How often the FFB_STACK_TRACE 'S' line is printed, ms. Slow on purpose: it shares the
+// port with the settings tool, and the figures it carries move slowly.
+#define FFB_STACK_TRACE_MS 1000
 
 // Default vaules for gains and effect if nothing saved into eeprom
 #define default_gain 100
@@ -215,16 +264,14 @@ https://github.com/barsk/Arduino_FFB_Yoke
 // Low-end shaping for Axis::applyForce().
 // The old mapping stepped PWM straight to pwmMin the instant any force appeared
 // (map(|gForce|,0,10000,pwmMin,255)) - so a 5 % effect asked for ~10 % drive and
-// the axis broke static friction with a lurch: the "exaggerated at low magnitude"
+// the axis broke static friction with a lurch: that exaggerated the low magnitude
 // feel. Now the breakaway offset eases in with a quadratic curve over the first
 // PWM_KNEE_FORCE units of demanded force; above the knee the mapping is byte-for-
-// byte the old one. Trade: a small, soft dead zone at the very bottom instead of
-// a hard grab. Widen if the low end still grabs, narrow if centre feels dead.
-//   PWM_KNEE_FORCE 0  -> restores the old hard step.
-// Units are DirectInput force (0..10000). Kept compile-time (not in the settings
-// struct) so no FIRMWARE_VERSION bump; promote to a Communication setting later
-// if it needs per-unit tuning.
-#define PWM_KNEE_FORCE 1200
+// byte like before. Trade: a small, soft dead zone at the very bottom instead of
+// a hard grab. Widen if the low end still is too strong, narrow if centre feels dead.
+//   PWM_KNEE_FORCE 0  -> disables KNEE, old hard step (no dead zone, hard grab)
+// Units are DirectInput force (0..10000).
+#define PWM_KNEE_FORCE 1000 
 
 // The knee's dead-zone comes from `off` ramping all the way from 0: the smallest
 // commands sit well below breakaway PWM so nothing moves. PWM_KNEE_FLOOR_PCT
@@ -236,9 +283,12 @@ https://github.com/barsk/Arduino_FFB_Yoke
 //   ~70 -> most of the dead zone gone, pop is only ~pwmMin*0.3 counts
 // For a dead-zone-free low end without any pop, the real fix is the Stribeck
 // friction FF below (velocity-aware, also cancels the kinetic drop).
-#define PWM_KNEE_FLOOR_PCT 75
+#define PWM_KNEE_FLOOR_PCT 90
 
 // --- Optional: Stribeck friction feedforward ------------------------------
+// NOTE!!! This currently causes the firmware to be instable and crash and reboot. 
+// The reason is unknown. It is *disabled* by default. Use at your own risk!
+//
 // Boosts the motor in the direction of the *commanded* force, strongest at
 // standstill and fading as the axis gains speed (static friction >> kinetic).
 // Lets weak effects break the axis loose without a big standing pwmMin /
@@ -253,9 +303,9 @@ https://github.com/barsk/Arduino_FFB_Yoke
 //   FRIC_FF_MIN_FORCE- noise gate; no boost below this commanded force.
 // Bench-tune hands-off: raise FRIC_FF_STATIC until small forces feel alive
 // with zero creep or buzz. Split _X/_Y in applyForce() if the axes differ.
-#define ENABLE_FRICTION_FF
-#define FRIC_FF_STATIC     15
-#define FRIC_FF_VS         150
+//#define ENABLE_FRICTION_FF
+#define FRIC_FF_STATIC     4
+#define FRIC_FF_VS         250
 #define FRIC_FF_MIN_FORCE  40
 
 // At rest (no commanded force) release the H-bridge (EN low) so the motor
@@ -273,7 +323,7 @@ https://github.com/barsk/Arduino_FFB_Yoke
 // If using 0 as force, we can get bouncing towards the endstop (if hands off)
 // This force should be just enough to get the motor working, to high and there will be heat!!!
 // Range is 0-10000
-#define ENDSTOP_HOLD_FORCE 300
+#define ENDSTOP_HOLD_FORCE 300 // 300
 
 // SOFT LOCK / travel-limit settings
 //

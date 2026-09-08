@@ -1,8 +1,17 @@
-# Replicates Joystick_::Joystick_() runtime descriptor builder VERBATIM for the
-# real ctor args used in Arduino_FFB_Yoke.ino:
+# Regenerates the joystick half of the HID report descriptor - the frozen
+# `joyReportDescriptor[] PROGMEM` array in src/src/Joystick.cpp. Run it and paste the
+# output over that array whenever the button / hat / axis layout changes; the total
+# descriptor size feeds D_HIDREPORT, so host and device must agree.
+#
+#   python tool/gen_joydesc.py
+#
+# It replicates VERBATIM the runtime builder from the stock Matthew Heironimus
+# ArduinoJoystickLibrary ctor, for the args Arduino_FFB_Yoke.ino actually passes:
 #   Joystick(JOYSTICK_DEFAULT_REPORT_ID=0x01, JOYSTICK_TYPE_JOYSTICK=0x04,
 #            buttonCount=12, hatSwitchCount=1, X=true, Y=true, Z=false)
-# Source of truth: src/src/Joystick.cpp lines 110-361 (constructor).
+# That builder is no longer in Joystick.cpp - it was deleted once its output became
+# the constant above (-150 B RAM, -314 B flash), which is exactly why this script has
+# to be kept: it is the only remaining copy of how those bytes are derived.
 
 joystickType   = 0x04
 _buttonCount   = 12
