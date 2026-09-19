@@ -54,6 +54,66 @@ https://github.com/barsk/Arduino_FFB_Yoke
 *****************************/
 // #define SERIAL_DEBUG
 
+/**************************************************************************************
+  Pitch drivetrain configuration
+
+  true  = current design: 14T motor pulley + 14T encoder pulley, no planetary gear.
+  false = previous design: two 30T pulleys + a 1:3.7 planetary gear on the motor.
+
+  Edit the line below - no build flags, so the Arduino IDE handles it like any other
+  setting. Everything that differs between the two drivetrains is in this one block;
+  the rest of the file is drivetrain-neutral. Two ratios produce all of it:
+
+    counts per mm    The encoder magnet rides the idler pulley, so one turn is one belt
+                     circumference: 14T HTD-5M = 70 mm -> 4096/70 = 58.5 counts/mm, 30T
+                     = 150 mm -> 27.3 counts/mm. The 30T design therefore reports 0.47x
+                     the counts for the same travel, and every count-based reference
+                     scales with it: velocity, acceleration, the friction delta, the
+                     speed limiter and the calibration increment.
+
+    force at the     F = motor torque x ratio / pulley radius. 14T direct: 1/11.14 mm =
+    carriage         89.8 per Nm. 30T + 3.7:1: 3.7/23.87 mm = 155 per Nm - 1.73x the
+                     force for the same PWM, so gains and PWM limits scale by 1/1.73.
+
+  The 30T figures are scaled from the measured 14T ones, NOT measured on that hardware.
+  Treat them as starting points and bench-check Motor Start PWM and pitch gain first.
+
+  After switching: RE-RUN CALIBRATION - the stored travel is in encoder counts and those
+  change scale. Pitch gain and Motor Start PWM live in EEPROM, so a yoke with stored
+  settings keeps its old ones until the settings are reset to defaults or set by hand.
+**************************************************************************************/
+#define NEW_PITCH_CONF_14T true
+
+#if NEW_PITCH_CONF_14T
+  #define default_PITCH_PWM_MIN                   43
+  #define default_PITCH_TOT_GAIN                  70
+  #define default_damperMaxVelocity_PITCH         (24 << VEL_SHIFT)
+  #define default_frictionMaxPositionChange_PITCH 200
+  #define default_inertiaMaxAcceleration_PITCH    500
+  #define MAX_VELOCITY_Y                          (25 << VEL_SHIFT)
+  #define CALIBRATION_MOTOR_DELAY_Y               250
+  #define CALIBRATION_MAX_PWM_Y                   80
+  #define CALIBRATION_MAX_INCREMENT_Y             60
+  #define FRIC_FF_STATIC_PITCH                    6
+  #define FRIC_FF_VS_PITCH                        200
+  #define FRIC_FF_MIN_FORCE_PITCH                 40
+#else
+  #define default_PITCH_PWM_MIN                   25    // 44 x 0.58
+  #define default_PITCH_TOT_GAIN                  40    // 70 x 0.58
+  #define default_damperMaxVelocity_PITCH         (11 << VEL_SHIFT)   // 24 x 0.47
+  #define default_frictionMaxPositionChange_PITCH 93    // 200 x 0.47
+  #define default_inertiaMaxAcceleration_PITCH    233   // 500 x 0.47
+  #define MAX_VELOCITY_Y                          (12 << VEL_SHIFT)   // 25 x 0.47
+  #define CALIBRATION_MOTOR_DELAY_Y               350   // slower axis, plus gear backlash
+  #define CALIBRATION_MAX_PWM_Y                   46    // 80 x 0.58
+  #define CALIBRATION_MAX_INCREMENT_Y             28    // 60 x 0.47
+  #define FRIC_FF_STATIC_PITCH                    3     // 6 x 0.58, rounded DOWN:
+                                                        // creep is the failure mode,
+                                                        // and pwmMin is 26 here
+  #define FRIC_FF_VS_PITCH                        94    // 200 x 0.47
+  #define FRIC_FF_MIN_FORCE_PITCH                 40    // force units: unchanged
+#endif
+
 /*****************************
  FFB protocol trace over Serial (115200). Motors stay live. Costs ~380 B flash.
  TOGGLE: `build_flags = -D FFB_SERIAL_TRACE` in platformio.ini (comment out for release).
@@ -66,7 +126,8 @@ https://github.com/barsk/Arduino_FFB_Yoke
                                 8=spring 9=damper 10=inertia 11=friction;  loadStatus 1=ok 2=full 3=err
    D<ctrl>,<deviceState>        DeviceControl     [FFB_SERIAL_TRACE_FULL only]
                                 ctrl 1=actOn 2=actOff 3=stopAll 4=reset 5=pause 6=cont
-   F<nPlaying>,<rxReports>,<loops>,<stackFree>,<prevMin>   forceCalculator ~4 Hz  [FFB_SERIAL_TRACE]
+   F<nPlaying>,<rxReports>,<loops>,<fxPeak>,<fyPeak>,<vxPeak>,<vyPeak>
+                                forceCalculator ~4 Hz  [FFB_SERIAL_TRACE]
                                 rxReports = OUT reports accepted in the ~250 ms window; x4 = reports/s.
                                 loops     = main-loop passes in the same window; x4 = loop Hz, and
                                             also the FFB force update rate.
@@ -76,20 +137,33 @@ https://github.com/barsk/Arduino_FFB_Yoke
                                 rate, so capacity ~= (drain points) x (reports per drain) x loop Hz.
                                 Run that near demand and the queue grows without bound host-side -
                                 latency that builds with time in flight. Hence 3 drain points/pass.
+                                fxPeak,     peak |per-axis force| since the previous line, 0..10000,
+                                fyPeak    = as handed to Axis::applyForce (after the effect gains,
+                                            the per-axis total gain and the host device gain).
+                                            A peak, not a sample: force swings far faster than this
+                                            line, so a snapshot lands wherever the 250 ms boundary
+                                            falls and cannot be read against the velocity peak.
+                                vxPeak,     peak |axis velocity| since the previous line, in
+                                vyPeak    = counts/ms << VEL_SHIFT - the units the
+                                            default_damperMaxVelocity_* and
+                                            default_inertiaMaxAcceleration_* references use.
+                                            Divide by 64 for counts/ms. A reference set equal
+                                            to the peak means that effect reaches full
+                                            commanded force at that speed; set it lower and it
+                                            saturates earlier (heavier), higher and it stays
+                                            in its linear region (lighter).
+
+   S<stackFree>,<prevMin>,<upSec>,<mcusr>,<badIsr>  ~1 Hz  [FFB_STACK_TRACE]
                                 stackFree = bytes above .bss still holding the boot paint byte, i.e.
                                             the closest the stack has come to .bss THIS session.
                                 prevMin   = the same figure from the session BEFORE this boot, out of
-                                            EEPROM. After a crash this is the number that matters: a
-                                            live reading can never come from a session that died.
-                                            65535 = no previous value recorded.
-
-   S<stackFree>,<prevMin>,<upSec>,<mcusr>,<badIsr>  ~1 Hz  [FFB_STACK_TRACE]
-                                Same two stack figures as the F line, but emitted from the
-                                main loop rather than from inside getEffectForce(). The F
-                                line only appears while a host is driving effects, so after
-                                a reset - the moment prevMin actually matters - there is
-                                nothing to read until you reconnect the sim. This line
-                                repeats forever, so the terminal can be attached whenever.
+                                            EEPROM. After a crash it is the only way to see how close
+                                            the session that died came. 65535 = none recorded.
+                                Both rode the F line until force and velocity peaks took their place
+                                there, so the paint, its 50 ms scan and the EEPROM slot are now built
+                                only with FFB_STACK_TRACE. This line repeats forever, so a terminal can
+                                be attached whenever - the F line only appears while a host is driving
+                                effects, which is exactly not the case in the seconds after a reset.
                                 upSec = seconds since boot. Watch it: if it drops back to 0
                                         the yoke reset, which is the event you are hunting.
                                 mcusr = MCUSR latched at boot, i.e. WHY the last reset was.
@@ -150,6 +224,19 @@ https://github.com/barsk/Arduino_FFB_Yoke
 // On PCB marked as 
 #define I2C_SDA 2 // (PIT_A)
 #define I2C_SCL 3 // (PIT_B)
+
+// AS5600 slow filter (CONF SF bits): the sensor s own output filter, and so how stale
+// the angle the force loop reads is. Datasheet v1-06, settling time / RMS noise:
+//   0 = 16x, 2.20 ms, 0.015 deg (power-on default)
+//   1 =  8x, 1.10 ms, 0.021 deg
+//   2 =  4x, 0.55 ms, 0.030 deg
+//   3 =  2x, 0.286 ms, 0.043 deg  <- set here
+// 2.2 ms of lag is about a whole force-loop pass (~4-5 ms at 10-15 effects), and the
+// spring, damper, friction and friction-FF metrics are all derived from this position.
+// The added noise stays under half of one 12-bit count (0.088 deg), so resolution is
+// unaffected. CONF is volatile, so setup() re-applies it on every boot; 0 restores the
+// stock behaviour. The fast-filter threshold (FTH) is left off.
+#define ENCODER_SLOW_FILTER 3
 
 
 // Pitch Motordriver pins
@@ -225,7 +312,7 @@ https://github.com/barsk/Arduino_FFB_Yoke
 // Default vaules for gains and effect if nothing saved into eeprom
 #define default_gain 100
 #define default_friction_gain 100
-#define default_spring_gain 40
+#define default_spring_gain 50
 
 // NOTE: velocity/acceleration are computed as (positionChange << VEL_SHIFT) / diffTime
 // (see updateEffects() in joystick.ino). VEL_SHIFT = 6 keeps sub-count/ms resolution that
@@ -235,31 +322,83 @@ https://github.com/barsk/Arduino_FFB_Yoke
 // EEPROM / not in the settings tool), so changing the scale needs no FIRMWARE_VERSION bump.
 #define VEL_SHIFT 6
 
-#define default_frictionMaxPositionChange_ROLL 40
-#define default_inertiaMaxAcceleration_ROLL (30 << VEL_SHIFT)
-#define default_damperMaxVelocity_ROLL (15 << VEL_SHIFT)
+// Window over which velocity, acceleration and the friction delta are differentiated,
+// in ms. Fixed on purpose: differentiating per loop pass made all three scale with the
+// loop rate, so damper/inertia/friction changed character with effect count. One encoder
+// count of jitter reads as 64/W velocity units and 640/(W*W) acceleration units - at the
+// old per-pass rate that was 64 and 640 at ~1 kHz idle against 16 and 40 at ~250 Hz in
+// flight; at W = 8 it is a steady 8 and 10. Larger W = quieter but laggier (the metrics
+// trail the hand by up to W ms). The *MaxVelocity / *MaxAcceleration references and
+// *MaxPositionChange are all in these units, so changing W rescales them.
+#define PHYSICS_SAMPLE_MS 10
 
-#define default_frictionMaxPositionChange_PITCH 60
-#define default_inertiaMaxAcceleration_PITCH (40 << VEL_SHIFT)
-#define default_damperMaxVelocity_PITCH (25 << VEL_SHIFT)
+// Counts of travel per PHYSICS_SAMPLE_MS window. Scaled up from the 4/28 tuned against
+// the old per-pass delta (~4-5 ms in flight) so the feel carries over to the fixed 8 ms
+// window; the delta grows with the window, so the reference has to as well.
+#define default_frictionMaxPositionChange_ROLL 50
+// default_frictionMaxPositionChange_PITCH   // see the pitch drivetrain block above
+
+#define default_damperMaxVelocity_ROLL ( 5 << VEL_SHIFT)
+// default_damperMaxVelocity_PITCH   // see the pitch drivetrain block above
+
+// Acceleration, NOT velocity: plain numbers, no << VEL_SHIFT. That shorthand belongs to
+// the velocity references above and made these ~10x too high, so inertia bit once on the
+// initial jerk and then went quiet. Starting value:
+//   reference ~= (velocity change, same units as damperMaxVelocity) x 10 / build-up ms
+// A roll sweep building 768 in 60 ms wants ~128; a pitch sweep building 2400 in 80 ms
+// wants ~300. Lower saturates on gentler onsets = more apparent mass. The jitter floor
+// is 640/(PHYSICS_SAMPLE_MS^2) = ~10 at an 8 ms window, so stay well clear of it.
+#define default_inertiaMaxAcceleration_ROLL 140 //120
+// default_inertiaMaxAcceleration_PITCH   // see the pitch drivetrain block above //300
+
+// Output smoothing for the condition effects, in Hz (0 = off, force passes through).
+// These filter the FORCE the damper/inertia/friction calculators produce, one filter
+// per axis. alpha is re-derived from the measured loop period every ~256 ms
+// (setConditionFilterRates in Joystick.cpp), so the smoothing no longer drifts with
+// effect count: the old single 2 Hz constant assumed a 500 Hz loop and in practice ranfroll
+// from ~0.8 Hz (15 effects) to ~3.9 Hz (idle). Time constant is 1/(2*pi*f):
+//   12 Hz = 13 ms      4 Hz = 40 ms      2 Hz = 80 ms (the old value)
+// Damper and friction should track the hand, so they are filtered lightly - lag here is
+// what makes a quick jab feel weaker than a steady sweep at the same speed. Acceleration
+// is a second difference of a quantised position and genuinely noisy, so inertia keeps
+// more smoothing.
+#define DAMPER_LPF_HZ   12
+#define INERTIA_LPF_HZ   8
+#define FRICTION_LPF_HZ 12
+
+
 
 // Speed limit settings
 // #define ENABLE_SPEED_LIMITER // comment out to disable
 #define MAX_VELOCITY_X (15 << VEL_SHIFT)
-#define MAX_VELOCITY_Y (25 << VEL_SHIFT)
+// MAX_VELOCITY_Y   // see the pitch drivetrain block above
 #define VELOCITY_HYSTERESIS (5 << VEL_SHIFT) // max velocity - this value to reenable
 #define DEFAULT_VELOCITY_PCNT 60 // default percentage of MAX velocity
 #define DEFAULT_SOFT_LOCK_Y_PCNT 80 // default soft lock range in percentage of full range (iMax - iMin) if not calibrated
 
-#define default_PITCH_TOT_GAIN 45
+// Motor Start PWM, knee and floor defaults. Bench sweeps on the 20 A supply (2026-09-12,
+// sheets in reference/) put breakaway at PWM 51 on pitch and 45 on roll; the values were
+// then settled by feel on the yoke (2026-09-14) with friction FF on (FRIC_FF_STATIC 8),
+// PWM_KNEE_FORCE 1000 and PWM_KNEE_FLOOR_PCT 75:
+//  - Motor Start PWM just under breakaway (45 / 40) lets a held force reach movement early:
+//    dead band ~8 % of the sim's force range on pitch, ~3 % on roll (25 % / 14 % with the
+//    previous 26 / 25).
+//  - The knee stops small forces - propeller rumble in particular - riding the full
+//    offset. The tiniest force gets floor x Motor Start PWM + the FF boost = 41 / 38
+//    counts, still 10 / 7 under breakaway, so the yoke holds still near centre.
+//  - Above the knee a held force gets Motor Start PWM + boost = 53 / 48, a few counts
+//    over breakaway by design: a force that size is meant to move the yoke.
+// If an axis drifts or hums hands-off, lower its Motor Start PWM by 2 in the Yoke Tool.
+// Gains: the real grip is 125 mm from the roll axis. There, pitch 55 / roll 100 leaves
+// pitch ~1.25-1.45x roll's force for the same sim magnitude; about 40 would balance them.
+// Defaults only reach a yoke with fresh or reset EEPROM; stored settings are kept.
+// default_PITCH_TOT_GAIN   // see the pitch drivetrain block above
 #define default_PITCH_PWM_MAX 255
-// #define default_PITCH_PWM_MIN 43
-#define default_PITCH_PWM_MIN 26
+// default_PITCH_PWM_MIN   // see the pitch drivetrain block above   
 
-#define default_ROLL_TOT_GAIN 70
+#define default_ROLL_TOT_GAIN 100
 #define default_ROLL_PWM_MAX 255
-// #define default_ROLL_PWM_MIN 37
-#define default_ROLL_PWM_MIN 25
+#define default_ROLL_PWM_MIN 39    
 
 // Low-end shaping for Axis::applyForce().
 // The old mapping stepped PWM straight to pwmMin the instant any force appeared
@@ -270,8 +409,11 @@ https://github.com/barsk/Arduino_FFB_Yoke
 // byte like before. Trade: a small, soft dead zone at the very bottom instead of
 // a hard grab. Widen if the low end still is too strong, narrow if centre feels dead.
 //   PWM_KNEE_FORCE 0  -> disables KNEE, old hard step (no dead zone, hard grab)
+// Default 1000. With Motor Start PWM just under breakaway the knee is what stops small
+// forces - propeller rumble in particular - riding the full offset. Turning it off (0)
+// tightens the held dead band, but inflates exactly those forces again.
 // Units are DirectInput force (0..10000).
-#define PWM_KNEE_FORCE 1000 
+#define PWM_KNEE_FORCE 1200
 
 // The knee's dead-zone comes from `off` ramping all the way from 0: the smallest
 // commands sit well below breakaway PWM so nothing moves. PWM_KNEE_FLOOR_PCT
@@ -283,30 +425,36 @@ https://github.com/barsk/Arduino_FFB_Yoke
 //   ~70 -> most of the dead zone gone, pop is only ~pwmMin*0.3 counts
 // For a dead-zone-free low end without any pop, the real fix is the Stribeck
 // friction FF below (velocity-aware, also cancels the kinetic drop).
-#define PWM_KNEE_FLOOR_PCT 90
+// Default 75, settled by feel. No effect while PWM_KNEE_FORCE is 0.
+#define PWM_KNEE_FLOOR_PCT 80
 
 // --- Optional: Stribeck friction feedforward ------------------------------
-// NOTE!!! This currently causes the firmware to be instable and crash and reboot. 
-// The reason is unknown. It is *disabled* by default. Use at your own risk!
-//
 // Boosts the motor in the direction of the *commanded* force, strongest at
 // standstill and fading as the axis gains speed (static friction >> kinetic).
 // Lets weak effects break the axis loose without a big standing pwmMin /
 // PWM_KNEE_FORCE offset, so the low end can be tighter and more linear. Uses
 // the velocity already passed to Axis::applyForce() - no new sensing.
-//   FRIC_FF_STATIC   - peak boost, PWM counts. MUST stay below real breakaway
-//                      (~pwmMin) or the axis can self-crawl / hum hands-off.
+//   FRIC_FF_STATIC   - peak boost, PWM counts, added on top of the knee mapping.
+//                      What must stay below real breakaway is the drive a TINY
+//                      force gets - floor x Motor Start PWM + FRIC_FF_STATIC -
+//                      or the axis self-crawls / hums hands-off near centre.
+//                      Above the knee, Motor Start PWM + boost may exceed
+//                      breakaway: a force that large is meant to move the yoke.
 //   FRIC_FF_VS       - velocity (<<VEL_SHIFT counts/ms, as the speed limiter)
 //                      at which the boost is halved. Default is deliberately
 //                      low so the boost is confined to near-standstill; raise
 //                      (up to ~256) if the axis chatters as it breaks free.
 //   FRIC_FF_MIN_FORCE- noise gate; no boost below this commanded force.
 // Bench-tune hands-off: raise FRIC_FF_STATIC until small forces feel alive
-// with zero creep or buzz. Split _X/_Y in applyForce() if the axes differ.
-//#define ENABLE_FRICTION_FF
-#define FRIC_FF_STATIC     4
-#define FRIC_FF_VS         250
-#define FRIC_FF_MIN_FORCE  40
+// with zero creep or buzz.
+#define ENABLE_FRICTION_FF
+// Per axis: FRIC_FF_VS is in encoder counts and FRIC_FF_STATIC in PWM counts, so both
+// depend on the drivetrain. The pitch trio is in the pitch drivetrain block near the
+// top of this file; only roll lives here. FRIC_FF_MIN_FORCE is a commanded-force gate
+// (0..10000) and drivetrain-independent, but is kept per axis for symmetry.
+#define FRIC_FF_STATIC_ROLL     6
+#define FRIC_FF_VS_ROLL         200
+#define FRIC_FF_MIN_FORCE_ROLL  40
 
 // At rest (no commanded force) release the H-bridge (EN low) so the motor
 // terminals float and the axis coasts. Without this, driveMotor() leaves both
@@ -314,6 +462,25 @@ https://github.com/barsk/Arduino_FFB_Yoke
 // on every hand input and fights the low-end feel. Comment out to keep the old
 // always-braked behaviour (more hands-off settling, less free movement).
 #define COAST_AT_IDLE
+
+// Brake before coasting (only acts with COAST_AT_IDLE). Releasing EN the instant
+// the force reaches zero drops the bridge while the winding may still carry
+// several amps. That current's only path is through the FETs' body diodes back
+// into the 24 V rail; a switch-mode PSU cannot absorb it, so the rail climbs until
+// the PSU trips on over-voltage - seen on a 20 A supply every time a strong effect
+// stopped (a 10 A supply had capped the current, and with it the energy, below the
+// trip). The same spike exceeds the BTS7960's ~27 V operating rating. Holding both
+// low-sides on for COAST_BRAKE_MS first lets the current die away inside the
+// motor, then the bridge is released as before. The same release was what crashed the
+// yoke with ENABLE_FRICTION_FF on: friction FF drives harder at small forces, so it
+// released with current far more often. With the brake in place friction FF is stable
+// (hardware-confirmed 2026-09-14) - keep this defined whenever friction FF is enabled.
+//   COAST_AT_IDLE + COAST_BRAKE_MS  coast at rest, brake briefly at each stop
+//   COAST_AT_IDLE alone             coast at rest, release instantly (trips a 20 A PSU,
+//                                   and crashes the yoke with friction FF on)
+//   neither                         always braked at rest (also cures the trip)
+// Raise to 20-30 if the PSU still trips on stop.
+#define COAST_BRAKE_MS 10
 
 // Limit range from the absolute max found from calib to assure full range is given
 #define EXTREMITY_LIMITER_X 0 
@@ -356,11 +523,11 @@ https://github.com/barsk/Arduino_FFB_Yoke
    Calibration Constants
 *******************************************/
 #define CALIBRATION_MOTOR_DELAY_X 600
-#define CALIBRATION_MOTOR_DELAY_Y 250
+// CALIBRATION_MOTOR_DELAY_Y   // see the pitch drivetrain block above
 #define CALIBRATION_MAX_PWM_X 55
-#define CALIBRATION_MAX_PWM_Y 80
+// CALIBRATION_MAX_PWM_Y   // see the pitch drivetrain block above
 #define CALIBRATION_MAX_INCREMENT_X 35                // Maximum positional delta change per loop (WHILE_DELAY)                       
-#define CALIBRATION_MAX_INCREMENT_Y 60                // Maximum positional delta change per loop (WHILE_DELAY)
+// CALIBRATION_MAX_INCREMENT_Y   // see the pitch drivetrain block above                // Maximum positional delta change per loop (WHILE_DELAY)
 
 #define CALIBRATION_AXIS_MOVEMENT_TIMEOUT 2000           // Timeout seconds for no movement
 #define CALIBRATION_TIMEOUT 20000                        // Timeout seconds for calibration

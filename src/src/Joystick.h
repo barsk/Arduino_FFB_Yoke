@@ -202,7 +202,8 @@ private:
 	int16_t ConditionForceCalculator(volatile TEffectState& effect, float metric, uint8_t conditionReport);
 	void forceCalculator(int16_t* forces);
 	float getAngleRatio(volatile TEffectState& effect, int axis);
-	int16_t getEffectForce(volatile TEffectState& effect, EffectParams _effect_params, uint8_t axis);
+	int16_t waveForce(volatile TEffectState& effect);
+	int16_t getEffectForce(volatile TEffectState& effect, EffectParams _effect_params, uint8_t axis, int16_t wave);
 protected:
 	int buildAndSet16BitValue(bool includeValue, int16_t value, int16_t valueMinimum, int16_t valueMaximum, int16_t actualMinimum, int16_t actualMaximum, uint8_t dataLocation[]);
 	int buildAndSetAxisValue(bool includeAxis, int16_t axisValue, int16_t axisMinimum, int16_t axisMaximum, uint8_t dataLocation[]);

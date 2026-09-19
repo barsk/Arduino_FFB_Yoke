@@ -1,15 +1,30 @@
 #include "filters.h"
-#include <math.h>
 
-#define PI 3.1415926535897932384626433832795
+#define TWO_PI_F 6.28318530718f
 
-LowPassFilter::LowPassFilter(): 
+// One-pole low pass, discretised as alpha = dt / (RC + dt) (backward Euler) rather than
+// alpha = 1 - exp(-dt/RC).  Same cutoff to first order, and two practical wins on this
+// part: no exp() in the build (the avr-libc soft-float one costs a few hundred bytes of
+// flash and this was its only runtime caller), and alpha stays below 1 for any dt, so a
+// slow loop pass can never make the filter overshoot its input.
+static float alphaFor(float cutoffHz, float deltaTime)
+{
+	if (cutoffHz <= 0.0f) return 1.0f;      // 0 Hz = filter off, pass the input straight through
+	if (deltaTime <= 0.0f) return 0.0f;     // no time passed, hold
+	float rc = 1.0f / (TWO_PI_F * cutoffHz);
+	return deltaTime / (rc + deltaTime);
+}
+
+// Pass-through until configured.  It used to default to alpha 0, which is not "unfiltered"
+// but "output frozen at 0" - a damper/inertia/friction force of exactly zero, silently,
+// if the filters were ever used before Joystick_::begin() configured them.
+LowPassFilter::LowPassFilter():
 	output(0),
-	ePow(0){}
+	ePow(1.0f){}
 
 LowPassFilter::LowPassFilter(float iCutOffFrequency, float iDeltaTime):
 	output(0),
-	ePow(1-exp(-iDeltaTime * (2 * PI) * iCutOffFrequency))
+	ePow(alphaFor(iCutOffFrequency, iDeltaTime))
 {
 }
 
@@ -23,5 +38,5 @@ float LowPassFilter::update(float input, float deltaTime, float cutoffFrequency)
 }
 
 void LowPassFilter::reconfigureFilter(float deltaTime, float cutoffFrequency){
-	ePow = 1-exp(-deltaTime * (2 * PI) * cutoffFrequency);
+	ePow = alphaFor(cutoffFrequency, deltaTime);
 }

@@ -117,11 +117,21 @@ void updateEffects(bool recalculate) {
 
   for (byte i = MEM_ROLL; i <= MEM_PITCH; i++) {
     // springMaxPosition is set in setRangeJoystick() (in lock-step with the HID
-    // axis range); here we only feed the live position.
+    // axis range); here we only feed the live position - every pass, whatever the
+    // physics window below is doing.
     effects[i].springPosition = encoderPos[i];
+  }
 
-    if (diffTime > 0 && recalculate) {
-      lastEffectsUpdate = currentMillis;
+  // Velocity, acceleration and the friction delta are differentiated over a FIXED window
+  // (PHYSICS_SAMPLE_MS), not over whatever the loop period happens to be. Per-pass
+  // differentiation tied all three to the loop rate: at ~1 kHz idle one encoder count of
+  // jitter read as 64 velocity units and 640 acceleration units, against 16 and 40 at
+  // ~250 Hz with a full effect set - so damper, inertia and friction each changed
+  // character with effect count, and inertia was mostly differentiated noise. The values
+  // are held between windows; the effects read them every pass.
+  if (recalculate && diffTime >= PHYSICS_SAMPLE_MS) {
+    lastEffectsUpdate = currentMillis;
+    for (byte i = MEM_ROLL; i <= MEM_PITCH; i++) {
       int32_t positionChange = encoderPos[i] - physicsData[i].lastPos;
       // E5: scale BEFORE dividing so gentle inputs don't quantise to 0. Pure integer.
       // vel is counts/ms << VEL_SHIFT (see defines.h); accel inherits the same scale.
@@ -132,7 +142,7 @@ void updateEffects(bool recalculate) {
       int32_t accel = ((vel - physicsData[i].lastVel) * 10) / diffTime;
       accel = constrain(accel, -32767, 32767);
 
-      effects[i].frictionPositionChange = constrain(positionChange, -32767, 32767);  // raw delta
+      effects[i].frictionPositionChange = constrain(positionChange, -32767, 32767);  // delta over the window
       effects[i].inertiaAcceleration = accel;
       effects[i].damperVelocity = vel;
 

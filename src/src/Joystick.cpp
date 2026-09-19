@@ -24,7 +24,9 @@
 #include "Joystick.h"
 #include "FFBDescriptor.h"
 #include "filters.h"
+#include "../defines.h"   // DAMPER_LPF_HZ / INERTIA_LPF_HZ / FRICTION_LPF_HZ
 #include<avr/pgmspace.h>
+#include <stddef.h>   // offsetof, for the Gains layout check below
 #if defined(_USING_DYNAMIC_HID)
 
 #define JOYSTICK_REPORT_ID_INDEX 7
@@ -44,11 +46,35 @@
 // #define JOYSTICK_INCLUDE_THROTTLE    B00000010
 // #define JOYSTICK_INCLUDE_ACCELERATOR B00000100
 
-const float cutoff_freq_damper   = 2.0;  //Cutoff frequency in Hz
-const float sampling_time_damper = 0.002; //Sampling time in seconds.
+// Condition-effect output filters, one instance per axis; cutoffs in defines.h.  Their
+// alpha is re-derived from the MEASURED loop period (see forceCalculator below), because
+// the force loop runs anywhere from ~200 Hz with a full effect set to ~1 kHz idle: the old
+// fixed step - 2 Hz assuming a 500 Hz loop - smoothed about 5x harder under load than at
+// idle, and matched its own stated cutoff at no loop rate this firmware actually runs at.
 LowPassFilter damperFilter[FFB_AXIS_COUNT];
 LowPassFilter inertiaFilter[FFB_AXIS_COUNT];
 LowPassFilter frictionFilter[FFB_AXIS_COUNT];
+
+// RC per cutoff, 1/(2*pi*f) seconds, folded at compile time.
+static const float RC_DAMPER   = 1.0f / (6.28318530718f * DAMPER_LPF_HZ);
+static const float RC_INERTIA  = 1.0f / (6.28318530718f * INERTIA_LPF_HZ);
+static const float RC_FRICTION = 1.0f / (6.28318530718f * FRICTION_LPF_HZ);
+
+// Re-point the filters at the measured loop period: alpha = dt / (RC + dt).  Three float
+// divides, ~16 Hz.  begin() seeds them for a 1 ms pass so the very first damper frame is
+// already smoothed; the first measured window corrects that within ~64 ms.
+static void setConditionFilterRates(float dtSeconds)
+{
+    float aDamper   = dtSeconds / (RC_DAMPER + dtSeconds);
+    float aInertia  = dtSeconds / (RC_INERTIA + dtSeconds);
+    float aFriction = dtSeconds / (RC_FRICTION + dtSeconds);
+    for (int i = 0; i < FFB_AXIS_COUNT; ++i)
+    {
+        damperFilter[i].setAlpha(aDamper);
+        inertiaFilter[i].setAlpha(aInertia);
+        frictionFilter[i].setAlpha(aFriction);
+    }
+}
 
 // Gain bytes are percent (0..100). `x / 100.0f` costs a float DIVIDE (__divsf3, ~400
 // cycles); `x * 0.01f` is a float multiply (~100). This is evaluated per effect PER AXIS
@@ -56,10 +82,21 @@ LowPassFilter frictionFilter[FFB_AXIS_COUNT];
 // compiler folds it - and the last-ulp difference vs /100.0f is far below the 8-bit PWM.
 static const float GAIN_PCT = 0.01f;
 
-// Quarter-wave sine table, Q15, RAM-resident: no PROGMEM, no pgm_read_*.  RAM rather
-// than flash because the PROGMEM version hung during effect creation (Rev 8.15/8.19)
-// and the RAM one does not; the cause was never found, so this is empirical.
-// 130 B of RAM, leaving ~323 B against a measured 225 B stack peak.
+// getEffectForce() picks a constant/periodic effect's gain by indexing from constantGain
+// with (effectType - USB_EFFECT_CONSTANT), so those Gains fields must stay in effect-type
+// order. Compile-time only - no flash.
+#define GAIN_AT(field, type) \
+    (offsetof(Gains, field) == offsetof(Gains, constantGain) + ((type) - USB_EFFECT_CONSTANT))
+static_assert(GAIN_AT(rampGain, USB_EFFECT_RAMP) && GAIN_AT(squareGain, USB_EFFECT_SQUARE) &&
+              GAIN_AT(sineGain, USB_EFFECT_SINE) && GAIN_AT(triangleGain, USB_EFFECT_TRIANGLE) &&
+              GAIN_AT(sawtoothdownGain, USB_EFFECT_SAWTOOTHDOWN) &&
+              GAIN_AT(sawtoothupGain, USB_EFFECT_SAWTOOTHUP),
+              "Gains: constantGain..sawtoothupGain must follow the USB_EFFECT_* type order");
+#undef GAIN_AT
+
+// Quarter-wave sine table, Q15, in PROGMEM (read with pgm_read_word). Earlier table
+// attempts hung during effect creation (review Rev 8.15-8.21); this version does not, and
+// why is still unknown (Rev 9.0) - so treat any change to the table's storage as untested.
 static const int16_t sinLUT[65] PROGMEM = {
        0,    804,   1608,   2410,   3212,   4011,   4808,   5602,   6393,   7179,
     7962,   8739,   9512,  10278,  11039,  11793,  12539,  13279,  14010,  14732,
@@ -110,7 +147,7 @@ static int16_t sinQ15i(uint16_t phase16)
 // Joystick half of the HID report descriptor: 12 buttons + 1 hat + X/Y (16-bit each),
 // Report ID 1. This is exactly what the stock Matthew Heironimus runtime builder emitted
 // for Joystick_(0x01, JOYSTICK_TYPE_JOYSTICK, 12, 1, true, true, false) - captured once
-// (tool/gen_joydesc.py) and frozen here so ~1 KB of flash + 150 B of static RAM
+// (tool/internal/gen_joydesc.py) and frozen here so ~1 KB of flash + 150 B of static RAM
 // (the old build buffer) are not spent re-deriving a constant at every boot. The
 // COLLECTION (Application) opened here is deliberately left unclosed - the trailing 0xC0
 // of pidReportDescriptor closes it (the two halves are concatenated by getDescriptor()).
@@ -162,7 +199,7 @@ Joystick_::Joystick_(
     // yoke, so the runtime byte-by-byte builder that used to live here - writing a 150 B
     // static-RAM buffer that then stayed allocated forever - was re-deriving a constant
     // at every boot. Dropping it: -150 B RAM, -314 B flash. Regenerate the array with
-    // tool/gen_joydesc.py if the button / hat / axis layout ever changes (the
+    // tool/internal/gen_joydesc.py if the button / hat / axis layout ever changes (the
     // total descriptor size feeds D_HIDREPORT, so it must match what the host expects).
 	uint8_t axisCount = (includeXAxis == true)
 		+  (includeYAxis == true)
@@ -207,12 +244,14 @@ void Joystick_::begin(bool initAutoSendState)
 {
 	_autoSendState = initAutoSendState;
 	sendState();
-    for (int i=0; i < FFB_AXIS_COUNT; ++i)
-    {
-        damperFilter[i] = LowPassFilter(cutoff_freq_damper, sampling_time_damper);
-        inertiaFilter[i] = LowPassFilter(cutoff_freq_damper, sampling_time_damper);
-        frictionFilter[i] = LowPassFilter(cutoff_freq_damper, sampling_time_damper);
-    }
+    // Seed the condition filters for the fastest loop this firmware reaches (~1 kHz idle)
+    // until the first measured window lands. Deliberately the heavy end: if the real loop
+    // is slower, they are briefly MORE smoothed than asked for, which only feels sluggish.
+    // The other way round - starting unfiltered, as leaving them at their pass-through
+    // default did - puts RAW damper force on the motors, and raw is noisy enough to buzz
+    // the yoke hard: a 1 ms position delta quantises to 0 or +-1 count, i.e. +-64 velocity
+    // units, so the metric jitters by a third of full scale at a 3-count damper reference.
+    setConditionFilterRates(0.001f);
 }
 
 void Joystick_::getUSBPID()
@@ -255,7 +294,24 @@ float Joystick_::getAngleRatio(volatile TEffectState& effect, int axis)
     return cachedRatio[axis == 1 ? 1 : 0];
 }
 
-int16_t Joystick_::getEffectForce(volatile TEffectState& effect, EffectParams _effect_params, uint8_t axis){
+// The constant/periodic calculator for this effect's type; 0 for condition and unknown
+// types, whose force is per axis and computed in getEffectForce().
+int16_t Joystick_::waveForce(volatile TEffectState& effect)
+{
+	switch (effect.effectType)
+	{
+		case USB_EFFECT_CONSTANT:     return ConstantForceCalculator(effect);
+		case USB_EFFECT_RAMP:         return RampForceCalculator(effect);
+		case USB_EFFECT_SQUARE:       return SquareForceCalculator(effect);
+		case USB_EFFECT_SINE:         return SinForceCalculator(effect);
+		case USB_EFFECT_TRIANGLE:     return TriangleForceCalculator(effect);
+		case USB_EFFECT_SAWTOOTHDOWN: return SawtoothDownForceCalculator(effect);
+		case USB_EFFECT_SAWTOOTHUP:   return SawtoothUpForceCalculator(effect);
+		default:                      return 0;
+	}
+}
+
+int16_t Joystick_::getEffectForce(volatile TEffectState& effect, EffectParams _effect_params, uint8_t axis, int16_t wave){
     float angle_ratio;
     uint8_t condition = 0;
     if (effect.enableAxis == DIRECTION_ENABLE && effect.conditionReportsCount > 1)
@@ -281,29 +337,18 @@ int16_t Joystick_::getEffectForce(volatile TEffectState& effect, EffectParams _e
     // }
 
 	int32_t force = 0;   // wide: a periodic with a large offset can exceed int16 mid-calc
-	switch (effect.effectType)
+	uint8_t type = effect.effectType;
+	if (type >= USB_EFFECT_CONSTANT && type <= USB_EFFECT_SAWTOOTHUP)
+	{
+		// Constant and periodic types: `wave` is the effect's waveform, computed once per
+		// effect by forceCalculator() since it is the same on both axes. Only the per-axis
+		// type gain and direction are applied here, with the old operand types and order
+		// (int16 * float(byte * GAIN_PCT) * float), so the result is bit-identical.
+		byte gain = (&m_gains[axis].constantGain)[type - USB_EFFECT_CONSTANT];   // see static_assert
+		force = wave * (float)(gain * GAIN_PCT) * angle_ratio;
+	}
+	else switch (type)
     {
-	    case USB_EFFECT_CONSTANT://1
-	        force = ConstantForceCalculator(effect) * (float)(m_gains[axis].constantGain * GAIN_PCT) * angle_ratio;
-	        break;
-	    case USB_EFFECT_RAMP://2
-	    	force = RampForceCalculator(effect) * (float)(m_gains[axis].rampGain * GAIN_PCT) * angle_ratio;
-	    	break;
-	    case USB_EFFECT_SQUARE://3
-	    	force = SquareForceCalculator(effect) * (float)(m_gains[axis].squareGain * GAIN_PCT) * angle_ratio;
-	    	break;
-	    case USB_EFFECT_SINE://4
-	    	force = SinForceCalculator(effect) * (float)(m_gains[axis].sineGain * GAIN_PCT) * angle_ratio;
-	    	break;
-	    case USB_EFFECT_TRIANGLE://5
-	    	force = TriangleForceCalculator(effect) * (float)(m_gains[axis].triangleGain * GAIN_PCT) * angle_ratio;
-	    	break;
-	    case USB_EFFECT_SAWTOOTHDOWN://6
-	    	force = SawtoothDownForceCalculator(effect) * (float)(m_gains[axis].sawtoothdownGain * GAIN_PCT) * angle_ratio;
-	    	break;
-	    case USB_EFFECT_SAWTOOTHUP://7
-	    	force = SawtoothUpForceCalculator(effect) * (float)(m_gains[axis].sawtoothupGain * GAIN_PCT) * angle_ratio;
-	    	break;
 	    case USB_EFFECT_SPRING://8
 	    	force = ConditionForceCalculator(effect, NormalizeRange(_effect_params.springPosition, m_effect_params[axis].springMaxPosition), condition) * angle_ratio * (float)(m_gains[axis].springGain * GAIN_PCT);
 	    	break;
@@ -343,6 +388,28 @@ void Joystick_::forceCalculator(int16_t* forces) {
     // like "the touchdown effect does nothing when other effects are playing".
     int32_t acc[FFB_AXIS_COUNT] = { 0 };
 
+    // One millis() for the whole pass: it disables interrupts to read a 4-byte volatile.
+    const uint32_t now = millis();
+
+    // Keep the condition filters pointed at the REAL loop period: count passes over a
+    // ~64 ms window and re-derive alpha from the average. Three float divides at ~16 Hz.
+    // Outside the branch below deliberately - it has to keep measuring while the device
+    // runs its own default spring, so the filters are already right for this loop when a
+    // host takes over and the first damper frame lands.
+    {
+        static uint32_t winStart = 0;
+        static uint16_t winPasses = 0;
+        if (winStart == 0) winStart = now;      // first pass: start the window here
+        winPasses++;
+        uint32_t elapsed = now - winStart;
+        if (elapsed >= 64)
+        {
+            setConditionFilterRates((float)elapsed / (1000.0f * winPasses));
+            winStart = now;
+            winPasses = 0;
+        }
+    }
+
 #ifdef _serialPrintForces
 	  Serial.print("!");
 	  Serial.print(SERIAL_CMD_DEBUG_FORCE_VALUES);
@@ -377,7 +444,6 @@ void Joystick_::forceCalculator(int16_t* forces) {
         // whole sweep against a single timestamp is also more correct than letting it
         // drift between effects. Same for the pidReportHandler indirection.
         PIDReportHandler& pid  = DynamicHID().pidReportHandler;
-        const uint32_t     now = millis();
         const bool notPaused   = !pid.deviceState;
 
 	    for (int id = 1; id <= MAX_EFFECTS; id++) {   // C2: IDs are 1..MAX_EFFECTS
@@ -468,11 +534,17 @@ void Joystick_::forceCalculator(int16_t* forces) {
                     }
                 }
 
+                // Constant and periodic waveforms depend on the effect alone, not on the
+                // axis, so compute them once here. getEffectForce() used to run the
+                // calculator per axis - the envelope and its 32-bit divides twice over for
+                // the same number. Conditions stay per axis (they read per-axis position
+                // ranges); waveForce() returns 0 for them.
+                const int16_t wave = waveForce(effect);
                 for (int axis = 0; axis < FFB_AXIS_COUNT; ++axis)
                 {
                     if (effect.enableAxis == DIRECTION_ENABLE || effect.enableAxis & (1 << axis))
                     {
-                        acc[axis] += (int32_t)getEffectForce(effect, effect.conditionReportsCount == 1 ? direction_effect_params : m_effect_params[axis], axis);
+                        acc[axis] += (int32_t)getEffectForce(effect, effect.conditionReportsCount == 1 ? direction_effect_params : m_effect_params[axis], axis, wave);
                     }
                 }
             }
@@ -496,10 +568,25 @@ void Joystick_::forceCalculator(int16_t* forces) {
     }
 
 #ifdef FFB_SERIAL_TRACE
-    extern volatile uint16_t loopCount;   // these three live in Arduino_FFB_Yoke.ino
-    extern uint16_t stackFreeMin();
-    extern uint16_t stackPrevSession;
-    // ~4 Hz snapshot: F<nPlaying>,<rxReports>,<loops>
+    extern volatile uint16_t loopCount;   // lives in Arduino_FFB_Yoke.ino
+    // Peaks since the last line, tracked every pass.  Both force and velocity swing far
+    // faster than the ~4 Hz trace, so a snapshot of either lands wherever the 250 ms
+    // boundary happens to fall - and a snapshot force read against a windowed velocity
+    // peak is what made the *MaxVelocity references look wrong to set.  Peak against
+    // peak is the comparison that means something.  Velocity is in those references'
+    // own units: counts/ms << VEL_SHIFT (updateEffects() in joystick.ino).
+    static uint16_t forcePeak[FFB_AXIS_COUNT] = { 0 };
+    static uint16_t velPeak[FFB_AXIS_COUNT] = { 0 };
+    for (int axis = 0; axis < FFB_AXIS_COUNT; ++axis)
+    {
+        int16_t f = forces[axis];
+        uint16_t fa = (f < 0) ? (uint16_t)(-f) : (uint16_t)f;
+        if (fa > forcePeak[axis]) forcePeak[axis] = fa;
+        int16_t dv = m_effect_params[axis].damperVelocity;
+        uint16_t v = (dv < 0) ? (uint16_t)(-dv) : (uint16_t)dv;
+        if (v > velPeak[axis]) velPeak[axis] = v;
+    }
+    // ~4 Hz: F<nPlaying>,<rxReports>,<loops>,<fxPeak>,<fyPeak>,<vxPeak>,<vyPeak>
     //   rxReports  OUT reports accepted in this ~250 ms window.  x4 = reports/s.
     //   loops      main-loop passes in the same window.          x4 = loop Hz.
     // The wire ceiling is ~1000 reports/s (bInterval=1), but the REAL ceiling is the
@@ -508,7 +595,6 @@ void Joystick_::forceCalculator(int16_t* forces) {
     // 2 x loops (or n_drain_points x loops) we are drain-limited and the host's surplus
     // is queuing up host-side; if rxReports sits well below that, the host simply is not
     // sending more and the latency is elsewhere.
-    // (fx/fy dropped from this line to fit the trace build in flash.)
     static uint32_t ftLast = 0;
     if ((uint32_t)millis() - ftLast >= 250)
     {
@@ -518,13 +604,20 @@ void Joystick_::forceCalculator(int16_t* forces) {
         DynamicHID().pidReportHandler.rxReportCount = 0;
         ftV(loopCount);
         loopCount = 0;
-        // The stack watermark moved here when the P line went. recordStackWatermark()
-        // samples it every 50 ms and persists a new low to EEPROM; without a reader it
-        // would be a RAM scan nobody looks at. prevMin is the post-mortem field - the
-        // previous session's low, read back at boot - and is the only way to see how
-        // close a session that CRASHED came, which a live reading never can.
-        ftV((long)stackFreeMin());
-        ftEnd((long)stackPrevSession);
+        // Peak |force| (+-10000, what applyForce() renders, after the effect gains, the
+        // per-axis total gain and the host device gain) against peak |velocity| over the
+        // same window: the pair to set default_damperMaxVelocity_* and
+        // default_inertiaMaxAcceleration_* against.  The stack figures that used to sit
+        // here are gone - stack was cleared as the reset cause, and the FFB_STACK_TRACE
+        // 'S' line still carries them.
+        ftV((long)forcePeak[0]);
+        ftV((long)forcePeak[1]);
+        ftV((long)velPeak[0]);
+        ftEnd((long)velPeak[1]);
+        forcePeak[0] = 0;
+        forcePeak[1] = 0;
+        velPeak[0] = 0;
+        velPeak[1] = 0;
     }
 #endif
 
@@ -551,7 +644,11 @@ int16_t Joystick_::RampForceCalculator(volatile TEffectState& effect)
 // E2: (uint32_t) forces a widening multiply - phase*period overflows 16-bit int otherwise.
 static inline uint16_t phaseTimeOf(volatile TEffectState& effect, uint16_t period)
 {
-	return (uint16_t)(((uint32_t)effect.phase * period) / 36000u);
+	// Phase 0 - nearly every effect TelemFFB sends - is exactly 0 ms, so skip the 32-bit
+	// divide (~33 us) for it. phase is volatile: read it once.
+	uint16_t phase = effect.phase;
+	if (phase == 0) return 0;
+	return (uint16_t)(((uint32_t)phase * period) / 36000u);
 }
 // E7: position within the current period, 0..period-1. Folding phase in here means the
 // waveform never phase-jumps when elapsedTime wraps, and phase gets its full effect (E1).
@@ -583,12 +680,9 @@ int16_t Joystick_::SinForceCalculator(volatile TEffectState& effect)
 		//     stray +phase/36000 term, ~1 rad max). E7: periodPos() stays bounded.
 		phase16 = (uint16_t)(((uint32_t)periodPos(effect, period) << 16) / period);
 	}
-	// DO NOT replace this sin() with a lookup table without reading Rev 8.15-8.21 first.
-	// A PROGMEM quarter-wave LUT was tried twice - at both sin() sites, then at this one
-	// alone - and BOTH reproduced a hang during effect creation (TelemFFB's threads block
-	// inside dib_effect_update/dib_poll). The table was verified correct four ways and
-	// --relax, stack exhaustion and the getAngleRatio half were all eliminated. The cause
-	// is still unknown, so this is a known-good baseline, not a missed optimisation.
+	// sinQ15i is the interpolated sine table above, not avr-libc sin() (~150 us a call); it
+	// ships as of review Rev 9.0, worth +45 % loop rate. Earlier table attempts hung during
+	// effect creation for reasons never found - read Rev 8.15-8.21 before restructuring it.
 	int32_t tempforce = (((int32_t)sinQ15i(phase16) * magnitude) >> 15) + offset;
 	return ApplyEnvelope(effect, tempforce);
 }
@@ -684,7 +778,16 @@ int16_t Joystick_::ApplyEnvelope(volatile TEffectState& effect, int16_t value)
 	// an envelope, so this is the common case for every effect on every axis on every
 	// loop pass - and it skips two more ApplyGain() calls plus two int32 divides.
 	if (effect.attackTime == 0 && effect.fadeTime == 0)
-		return ApplyGain(effect.magnitude, effect.gain) ? value : 0;
+	{
+		// That test was ApplyGain(magnitude, gain) != 0: (uint16)magnitude * gain / 255, an
+		// int32 divide (~33 us) only to compare with zero. The quotient is 0..65535, so its
+		// int16 result is 0 exactly when the product is below 255 - decided here without
+		// the divide, and for magnitude >= 255 without the multiply. Same predicate.
+		uint16_t m = (uint16_t)effect.magnitude;   // ApplyGain's uint16_t parameter conversion
+		uint8_t  g = effect.gain;
+		bool nonzero = (m >= 255) ? (g != 0) : ((uint16_t)(m * g) >= 255);
+		return nonzero ? value : 0;
+	}
 
 	int32_t magnitude = ApplyGain(effect.magnitude, effect.gain);
 	if (magnitude == 0) return 0;                 // D3: guard the final /magnitude

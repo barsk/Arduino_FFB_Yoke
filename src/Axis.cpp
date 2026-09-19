@@ -390,10 +390,15 @@ void Axis::applyForce(int16_t gForce, int32_t& pos, int16_t& velocity) {
 #ifdef ENABLE_FRICTION_FF
   // Stribeck breakaway assist: extra push in the commanded direction, max at
   // rest, fading with speed as  falloff = VS / (VS + |v|)  (Q8). See defines.h.
-  if (g > FRIC_FF_MIN_FORCE) {
+  // Per axis: VS is in encoder counts and STATIC in PWM counts, so both follow the
+  // drivetrain (see the pitch block in defines.h - the 30T build reports 0.47x the
+  // counts and produces 1.73x the force per PWM count).
+  if (g > (blIsRoll ? FRIC_FF_MIN_FORCE_ROLL : FRIC_FF_MIN_FORCE_PITCH)) {
+    const uint16_t ffVs     = blIsRoll ? FRIC_FF_VS_ROLL     : FRIC_FF_VS_PITCH;
+    const uint16_t ffStatic = blIsRoll ? FRIC_FF_STATIC_ROLL : FRIC_FF_STATIC_PITCH;
     uint16_t vmag = abs(velocity);
-    uint16_t fall = (uint16_t)(((uint32_t)FRIC_FF_VS << 8) / ((uint32_t)FRIC_FF_VS + vmag));
-    uint16_t pf   = pwmSpeed + (uint16_t)(((uint32_t)FRIC_FF_STATIC * fall) >> 8);
+    uint16_t fall = (uint16_t)(((uint32_t)ffVs << 8) / ((uint32_t)ffVs + vmag));
+    uint16_t pf   = pwmSpeed + (uint16_t)(((uint32_t)ffStatic * fall) >> 8);
     pwmSpeed = (pf > 255) ? 255 : (byte)pf;
   }
 #endif
@@ -401,9 +406,32 @@ void Axis::applyForce(int16_t gForce, int32_t& pos, int16_t& velocity) {
   if (!motorArmed) return;              // failed calibration / disabled: keep the bridge released
 #ifdef COAST_AT_IDLE
   if (pwmSpeed == 0) {                  // nothing commanded -> release the bridge, axis coasts
+#ifdef COAST_BRAKE_MS
+    // Brake first, then release - see COAST_BRAKE_MS in defines.h. Releasing EN
+    // while the winding still carries current pushes that current into the supply.
+    // enHigh means the bridge is still engaged; once released, nothing below runs
+    // and the axis stays coasting at no cost. stopMotor() is repeated every pass of
+    // the window rather than once, so no stale PWM can ever be left driving with EN
+    // high, whatever state a disarm/re-arm left behind.
+    if (enHigh) {
+      uint16_t now = (uint16_t)millis();
+      if (!braking) {
+        braking = true;
+        brakeStartMs = now;
+      }
+      if ((uint16_t)(now - brakeStartMs) < COAST_BRAKE_MS) {
+        stopMotor();                    // both inputs low: both low-sides on, winding shorted
+        return;
+      }
+      braking = false;
+    }
+#endif
     setEn(false);
     return;
   }
+#ifdef COAST_BRAKE_MS
+  braking = false;                      // force came back inside the window: just drive
+#endif
 #endif
   setEn(true);                          // no-op after the first call (enHigh cache)
   driveMotor(gForce > 0);

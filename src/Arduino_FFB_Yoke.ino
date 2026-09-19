@@ -75,9 +75,11 @@ byte adjPwmMin[MEM_AXES] = { default_ROLL_PWM_MIN, default_PITCH_PWM_MIN };     
 // TCA9548 I2C multiplexer (actually a switch)
 TCA9548 i2c_mux(0x70);
 
-// Magnetic rotary encoders
-AS5600 rollEncoder;  
-AS5600 pitchEncoder;
+// Magnetic rotary encoders. FastAS5600 skips most register-pointer writes on angle reads
+// (see FastAS5600.h); Axis still holds them as AS5600*.
+#include "FastAS5600.h"
+FastAS5600 rollEncoder;  
+FastAS5600 pitchEncoder;
 byte ROLL_CHANNEL = 0;
 byte PITCH_CHANNEL = 1;
 
@@ -212,10 +214,15 @@ void setup() {
   // that is worth knowing too.
   resetFlags = MCUSR;
   MCUSR = 0;
+#ifdef FFB_STACK_TRACE
+  // Stack instrumentation belongs to the S line now; the F line stopped carrying the two
+  // figures when force/velocity peaks took their place. Left out of a serial-only build,
+  // the paint, the 50 ms scan and the EEPROM slot all drop out with it.
   paintStack();     // must be first: everything below this uses stack
   // Capture what the PREVIOUS session got down to, then re-arm the slot.
   EEPROM.get(EEPROM_STACK_WATERMARK_INDEX, stackPrevSession);
   EEPROM.put(EEPROM_STACK_WATERMARK_INDEX, (uint16_t)0xFFFF);
+#endif
 #endif
   arduinoSetup();   // setup for Arduino itself (pins)
   Serial.begin(SERIAL_BAUD);  // init serial
@@ -233,11 +240,17 @@ void setup() {
   i2c_mux.begin();
   i2c_mux.selectChannel(ROLL_CHANNEL);
   rollEncoder.begin(); 
-  rollEncoder.setDirection(AS5600_CLOCK_WISE);  
+  rollEncoder.setDirection(AS5600_CLOCK_WISE);
+  // CONF is volatile: the filter is re-applied on every boot.  reloadPointer() is what
+  // FastAS5600.h asks for after any non-ANGLE register access.  See ENCODER_SLOW_FILTER.
+  rollEncoder.setSlowFilter(ENCODER_SLOW_FILTER);
+  rollEncoder.reloadPointer();  
 
   i2c_mux.selectChannel(PITCH_CHANNEL);
   pitchEncoder.begin(); 
-  pitchEncoder.setDirection(AS5600_CLOCK_WISE);  
+  pitchEncoder.setDirection(AS5600_CLOCK_WISE);
+  pitchEncoder.setSlowFilter(ENCODER_SLOW_FILTER);
+  pitchEncoder.reloadPointer();  
 
   // if serial debug, no motors enabled
 #ifndef SERIAL_DEBUG
@@ -315,10 +328,12 @@ void loop() {
   }
 #if defined(FFB_SERIAL_TRACE) || defined(FFB_STACK_TRACE)
   loopCount++;
+#endif
+#ifdef FFB_STACK_TRACE
   { // ~50 ms: fine enough to catch a dive shortly before a crash, cheap enough to ignore
     static unsigned long swLast = 0;
     if (currentMillis - swLast >= 50) { swLast = currentMillis; recordStackWatermark(); }
-  }   // reported by the ~4 Hz F line in forceCalculator()
+  }   // reported by the ~1 Hz S line below
 #endif
 #ifdef FFB_STACK_TRACE
   { // The S line: the same two stack figures the F line carries, but emitted from loop()

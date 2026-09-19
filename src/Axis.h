@@ -78,6 +78,10 @@ private:
     bool speedLimitActive;
     bool motorArmed;       // cleared on failed calibration / disableMotors() -> applyForce() stays dark
     bool enHigh;           // cached motorPinEn level, skip redundant digitalWrite in the hot loop
+#ifdef COAST_BRAKE_MS
+    bool braking;          // inside the brake-before-coast window (see COAST_BRAKE_MS)
+    uint16_t brakeStartMs; // low 16 bits of millis() when that window opened
+#endif
     AS5600* encoder;          // Pointer to the encoder object
     byte i2c_channel;         // Channel on TCA9548 for the encoder          
     byte pwmSpeed;                 // Current force  of the motor
