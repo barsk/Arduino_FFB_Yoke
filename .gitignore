@@ -4,7 +4,7 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
-tool/build/
+tool/settings_tool/build/
 
 # Working documents, not for publication
 private/

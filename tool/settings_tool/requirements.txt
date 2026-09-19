@@ -1,0 +1,5 @@
+# Dependencies for tool/settings_tool/settingsTool.py (settings tool, Python + PyQt6)
+# Install into the project venv:
+#   .venv\Scripts\python.exe -m pip install -r tool\settings__tool\requirements.txt
+PyQt6>=6.6
+pyserial>=3.5
