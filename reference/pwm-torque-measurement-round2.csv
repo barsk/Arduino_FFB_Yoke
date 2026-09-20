@@ -1,0 +1,70 @@
+SimInvent FFB Yoke - PWM vs torque bench measurement - ROUND 2 (pitch only, push direction);;;;;;;
+Semicolon-separated, decimal comma (SV);;;;;;;
+;;;;;;;
+Date;2026-09-12;;;;;;
+Measured by;;;;;;;
+Scale (make / resolution);;;;;;;
+PSU (make / model);;;;;;;
+PSU rating (A);20;;;;;;
+Supply nominal (V);24;;;;;;
+Ambient (C);;;;;;;
+;;;;;;;
+Round 1;pwm-torque-measurement.csv - both axes, PSU-limited above magnitude ~6000. Its pitch push readings are copied below for comparison.;;;;;;
+Run history;A first attempt at this round was discarded. Its low-end readings were inconsistent and the pitch belt was found to be over-tensioned. The belt was slackened before these readings. Only the V column is kept from that attempt - the supply behaved the same.;;;;;;
+;;;;;;;
+REQUIRED SETUP - all of these, or the numbers mean nothing;;;;;;;
+defines.h;PWM_KNEE_FORCE 0;;;;;;
+defines.h;ENABLE_FRICTION_FF commented out;;;;;;
+defines.h;ENABLE_SPEED_LIMITER stays off;;;;;;
+Yoke Tool;Motor Start PWM = 0 (pitch);;;;;;
+Yoke Tool;Pitch Gain = 100 (default is 45);;;;;;
+FFBTestTool;Background spring UNTICKED (defaults to on at 8000);;;;;;
+FFBTestTool;Constant Force, duration infinite, push button = 180 deg (nose-down);;;;;;
+Direction;Push (180 deg) only - both directions assumed symmetrical. Round 1 roll measured both ways agreed within 5% at magnitude 1400 and 5000.;;;;;;
+Position;Mid-travel, clear of the soft-lock cushion and endstops;;;;;;
+Method;Tap the frame and let it settle before each reading;;;;;;
+Method;Read the supply V while the force is held - at the same moment as the kg, not before or after;;;;;;
+Method;Measure V at the BTS7960 B+ / B- terminals - that is what the motor actually gets;;;;;;
+;;;;;;;
+GEOMETRY;;;;;;;
+Pitch (Y);HTD-5M 14T driving pulley, r = 11,14 mm, carriage direct (no lever);;;;;;
+Pitch conversion;Nm at motor = kg * 9,81 * 0,01114;;;;;;
+;;;;;;;
+WARNING;Stalled 775 at high duty can still draw more than 20 A. Keep each point 1-2 s.;;;;;;
+WARNING;Let the motor cool between points from 6000 up - hot windings pass less current, so the reading drops.;;;;;;
+WARNING;If V sags at the top again, the PSU is limiting and those points measure the PSU, not the motor.;;;;;;
+;;;;;;;
+* V during push;measured during the discarded first attempt - not re-taken, the supply behaved the same;;;;;;
+;;;;;;;
+Magnitude;PWM;Duty %;Push 180 deg (kg);V during push *;Round 1 push (kg);Round 1 V;Notes
+0;0;0;;;;24,1;
+200;5;2;;;;24,1;
+400;10;3,9;;;;24,1;
+600;15;5,9;;;;24,1;
+800;20;7,8;;;0;24,1;
+1000;25;9,8;;;0;24,1;
+1200;30;11,8;;;0,05;24,1;
+1400;35;13,7;;;0,17;24,1;
+1600;40;15,7;;;0,31;24;
+2000;51;20;;;0,62;23,9;
+2200;;;0,13;;;;
+2500;63;24,7;0,4;24,2;0,9;23,9;reads above 2800 - both are at the noise floor
+2800;;;0,3;24,15;;;reads below 2500 - both are at the noise floor
+3000;76;29,8;0,88;24,12;1,14;23,8;
+4000;102;40;1,56;23,99;1,9;23,5;
+5000;127;49,8;1,82;23,8;2,3;23,3;
+6000;153;60;2,49;23,69;2,7;22,8;
+7000;178;69,8;3,14;23,47;2,45;16;
+8000;204;80;3,51;23,18;;;
+8500;216;84,7;3,7;22,8;2,09;11,4;
+9000;229;89,8;4,17;22,85;;;
+10000;255;100;3,9;22,9;2,08;11;
+;;;;;;;
+COLD-FIRST CHECK;The sweep above ran in ascending order, so 10000 was the hottest point and read low - which made the curve look as if it peaked at 9000. Re-taken from cold in the other order it does not. Force was visibly decaying during the ~2,2 s at 10000.;;;;;;
+Magnitude;PWM;Duty %;Push 180 deg (kg);V during push;;;Notes
+10000;255;100,0;4,42;;;;from cold - the true peak, 43,4 N at the handle
+9000;229;89,8;3,85;;;;taken straight after, motor now warm - 12 % below the cold 10000
+;;;;;;;
+Conclusion;No ceiling at 9000. The curve rises all the way to full duty - what falls away is the motor's ability to hold it. Peak is a 1-2 s figure and sustained force is lower, dropping further as the winding heats.;;;;;;
+;;;;;;;
+Breakaway;Pitch starts moving at magnitude 2000 = PWM 51 = 20,0 % duty (Motor Start PWM 0, knee 0, gain 100). The 0,13 kg at 2200 is the first reading above it.;;;;;;

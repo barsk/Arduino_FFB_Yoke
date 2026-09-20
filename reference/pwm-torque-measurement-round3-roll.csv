@@ -1,0 +1,76 @@
+SimInvent FFB Yoke - PWM vs torque bench measurement - ROUND 3 (roll, top end);;;;;;;
+Semicolon-separated, decimal comma (SV);;;;;;;
+;;;;;;;
+Date;2026-09-12;;;;;;
+Measured by;;;;;;;
+Scale (make / resolution);;;;;;;
+PSU (make / model);;;;;;;
+PSU rating (A);20;;;;;;
+Supply nominal (V);24;;;;;;
+Ambient (C);;;;;;;
+;;;;;;;
+Purpose;Round 1 measured roll on a 10 A supply that folded back to ~12 V above magnitude 7000, so everything it says about roll above 6000 is really about the PSU. This re-measures that range on the 20 A supply.;;;;;;
+Comparable;The roll drivetrain has NOT been touched since round 1 - the belt that was slackened is on pitch. So round 1's roll readings below 6000 are still valid, and the 4000 / 5000 anchor rows below should reproduce them. If they do not, the rig or the method has drifted and the rest is suspect.;;;;;;
+Pitch for reference;Round 2 (pitch, 20 A, cold): 4,42 kg at magnitude 10000 = 43,4 N at the handle.;;;;;;
+;;;;;;;
+REQUIRED SETUP - all of these, or the numbers mean nothing;;;;;;;
+defines.h;PWM_KNEE_FORCE 0;;;;;;
+defines.h;ENABLE_FRICTION_FF commented out;;;;;;
+defines.h;ENABLE_SPEED_LIMITER stays off;;;;;;
+Yoke Tool;Motor Start PWM = 0 (roll);;;;;;
+Yoke Tool;Roll Gain = 100 (default is 70);;;;;;
+FFBTestTool;Background spring UNTICKED (defaults to on at 8000);;;;;;
+FFBTestTool;Constant Force, duration infinite, direction 90 deg - pushes LEFT, same as round 1's Roll 90 column;;;;;;
+Position;Mid-travel, clear of the soft-lock cushion and endstops;;;;;;
+;;;;;;;
+ORDER - heat decides the reading, so this matters;;;;;;;
+Run A;DONE. 10000 first from cold, then downwards, re-taking 10000 at the end.;;;;;;
+Run B;Let the motor cool to room temperature first - 15-20 min after Run A. Then go UPWARDS from 0. Low duty makes little heat (it goes with the square of the current), so this run stays close to cold all the way.;;;;;;
+Both;Keep each reading to 1-2 s. V is only worth recording from 4000 up.;;;;;;
+;;;;;;;
+GEOMETRY;;;;;;;
+Roll (X);12T to 56T = 4,67:1, handle lever 98 mm;;;;;;
+Roll conversion;Nm at the roll shaft = kg * 9,81 * 0,098   (this is a torque - the handle rotates);;;;;;
+;Nm at the motor = kg * 9,81 * 0,098 / 4,67;;;;;;
+;N at the grip = kg * 9,81, if gripping at the same 98 mm the scale is hooked at;;;;;;
+;;;;;;;
+WARNING;Stalled 775 at high duty can still draw more than 20 A. Keep each point 1-2 s.;;;;;;
+WARNING;If V sags below ~22 V the PSU is limiting again and that point measures the PSU, not the motor.;;;;;;
+;;;;;;;
+RUN A;Downwards from cold, 10000 to 4000. Heat built up through the run - the end re-check read 19 % below the cold first reading - so only that first 10000 is clean. Every later point reads low, increasingly so towards the bottom.;;;;;;
+Magnitude;PWM;Duty %;Roll 90 deg (kg);V during push;Round 1 90 deg (kg);Round 1 V;Notes
+10000;255;100;2,53;21,38;1,53;12,2;cold - the only clean reading of this run
+9000;229;89,8;2,37;21,42;;;
+8500;216;84,7;1,95;21,82;1,55;12,5;
+8000;204;80;1,83;22,09;;;
+7000;178;69,8;1,45;22,9;1,74;22;
+6000;153;60;1,32;23,25;1,93;22,4;
+5000;127;49,8;1,01;23,55;1,41;22,8;taken hottest, so it cannot check the rig - see Run B
+4000;102;40;0,86;23,82;1,24;23,2;taken hottest, so it cannot check the rig - see Run B
+;;;;;;;
+DRIFT CHECK;Re-take 10000 after all of the above. Lower than the first reading means the motor was warming through the sweep.;;;;;;
+10000;255;100;2,05;21,39;;;end-of-session re-check
+;;;;;;;
+Run A result;Cold peak 2,53 kg at 10000 = 2,43 Nm at the roll shaft = 24,8 N at a 98 mm grip = 0,521 Nm at the motor. No ceiling - it rises all the way to full duty, as pitch does. Pitch gives 1,75x roll's force at the handle, against 1,88x from geometry.;;;;;;
+;;;;;;;
+RUN B;Upwards from cold, 0 to 7000. Completes the table on the 20 A supply, and 4000 / 5000 check the rig properly this time - cold, as round 1's were.;;;;;;
+Magnitude;PWM;Duty %;Roll 90 deg (kg);V during push;Round 1 90 deg (kg);Run A (kg);Notes
+0;0;0;;;0;;
+200;5;2;;;0;;
+400;10;3,9;;;0;;
+600;15;5,9;;;0;;
+800;20;7,8;;;0;;
+1000;25;9,8;;;0,09;;round 1 moved here - only possible if its Motor Start PWM was 25 (PWM 48), not 0 (PWM 25)
+1200;30;11,8;;;0,1;;
+1400;35;13,7;;;0,15;;
+1600;40;15,7;;;0,35;;
+2000;51;20;0,13;;0,45;;
+2500;63;24,7;0,37;;0,77;;
+3000;76;29,8;0,54;;0,97;;
+4000;102;40;1,08;23,75;1,24;0,86;rig check - should land near round 1
+5000;127;49,8;1,35;23,47;1,41;1,01;rig check - should land near round 1
+6000;153;60;1,5;23,15;1,93;1,32;overlap with Run A - the difference is what heat cost
+7000;178;69,8;1,68;22,73;1,74;1,45;overlap with Run A - the difference is what heat cost
+;;;;;;;
+Not measured;0-1600 was not run in Run B.;;;;;;
+Breakaway;Roll starts moving at magnitude 1800 = PWM 45 = 17,6 % duty (Motor Start PWM 0, knee 0, gain 100). The 0,13 kg at 2000 is the first reading above it.;;;;;;
