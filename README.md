@@ -6,6 +6,10 @@ This is a fork of [Gagagu Arduino FFB Yoke](https://github.com/gagagu/Arduino_FF
 # Documentation
 ***All build guides and documentation for the 3D printed parts, electronics and software are in the [Wiki section!](https://github.com/barsk/Arduino_FFB_Yoke/wiki/Home)***
 
+# Support
+The [SimInvent Discord Server](https://discord.gg/cZUywYGyt6) is the main support and chat channel for this project. You are welcome to chime in and join the community there!<br>
+**Bug reports**, please create an [Issue](https://github.com/barsk/Arduino_FFB_Yoke/issues) so we can track bugs and issues. 
+
 ---
 
 > # Version 1.0 Release
@@ -44,13 +48,6 @@ This is a fork of [Gagagu Arduino FFB Yoke](https://github.com/gagagu/Arduino_FF
 > 
 > ## Electronics
 > The new PCBs (circuit boards) are now **fully tested!** Many thanks to **@PeteDDD** for his valuable contribution. All details are in the Wiki, Parts List and in the Electronics folder.
->
-
-
-
-# Support
-The [SimInvent Discord Server Invite Link](https://discord.gg/cZUywYGyt6) is the main support and chat channel for this project. You are welcome to chime in and join the community there!<br>
-**Bug reports**, please create an [Issue](https://github.com/barsk/Arduino_FFB_Yoke/issues) so we can track bugs and issues. 
 
 # Design and features compared to Gagagu Yoke
  
