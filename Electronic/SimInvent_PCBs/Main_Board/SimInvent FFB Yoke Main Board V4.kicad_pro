@@ -613,7 +613,7 @@
       "gencad": "",
       "idf": "",
       "netlist": "",
-      "plot": "GERBERS/",
+      "plot": "./",
       "pos_files": "GERBERS/",
       "specctra_dsn": "",
       "step": "",
