@@ -48,6 +48,10 @@ This is a fork of [Gagagu Arduino FFB Yoke](https://github.com/gagagu/Arduino_FF
 
 
 
+# Support
+The [SimInvent Discord Server Invite Link](https://discord.gg/cZUywYGyt6) is the main support and chat channel for this project. You are welcome to chime in and join the community there!<br>
+**Bug reports**, please create an [Issue](https://github.com/barsk/Arduino_FFB_Yoke/issues) so we can track bugs and issues. 
+
 # Design and features compared to Gagagu Yoke
  
 ![Yoke with casing](Images/CAD/Yoke%20with%20casing.jpg)  
