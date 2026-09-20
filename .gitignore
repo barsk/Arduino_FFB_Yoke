@@ -5,6 +5,7 @@
 .vscode/launch.json
 .vscode/ipch
 tool/settings_tool/build/
+tool/settings_tool/dist/
 
 # Working documents, not for publication
 private/
