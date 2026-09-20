@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 345" width="720" role="img"
+     aria-labelledby="t d" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <title id="t">DirectInput effect direction</title>
+  <desc id="d">A compass with 0 degrees at the top increasing clockwise, and a worked
+  example: direction 90 degrees means the force comes from the east and pushes the device left.</desc>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#d9782d"/>
+    </marker>
+    <marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b95a3"/>
+    </marker>
+  </defs>
+
+  <rect x="1" y="1" width="718" height="343" rx="10" fill="#fbfbfc" stroke="#e5e8ec"/>
+  <line x1="318" y1="30" x2="318" y2="315" stroke="#e5e8ec"/>
+
+  <!-- ============ compass ============ -->
+  <line x1="170.0" y1="67.0" x2="170.0" y2="283.0" stroke="#eaeef2"/>
+  <line x1="62.0" y1="175.0" x2="278.0" y2="175.0" stroke="#eaeef2"/>
+  <circle cx="170.0" cy="175.0" r="90.0" fill="none" stroke="#c3cad3" stroke-width="2"/>
+  <circle cx="170.0" cy="85.0" r="3.5" fill="#8b95a3"/><circle cx="260.0" cy="175.0" r="3.5" fill="#8b95a3"/><circle cx="170.0" cy="265.0" r="3.5" fill="#8b95a3"/><circle cx="80.0" cy="175.0" r="3.5" fill="#8b95a3"/>
+  <path d="M 189.2 122.4 A 56 56 0 0 1 222.6 194.2" fill="none"
+        stroke="#8b95a3" stroke-width="2" marker-end="url(#ahg)"/>
+
+  <text x="170.0" y="62" text-anchor="middle" font-size="17" font-weight="600" fill="#2b3138">0&#176;</text>
+  <text x="170.0" y="78" text-anchor="middle" font-size="12" fill="#6b7280">north &#183; ahead</text>
+  <text x="272" y="172" font-size="17" font-weight="600" fill="#2b3138">90&#176;</text>
+  <text x="272" y="188" font-size="12" fill="#6b7280">east</text>
+  <text x="170.0" y="294" text-anchor="middle" font-size="17" font-weight="600" fill="#2b3138">180&#176;</text>
+  <text x="170.0" y="310" text-anchor="middle" font-size="12" fill="#6b7280">south &#183; behind</text>
+  <text x="68" y="172" text-anchor="end" font-size="17" font-weight="600" fill="#2b3138">270&#176;</text>
+  <text x="68" y="188" text-anchor="end" font-size="12" fill="#6b7280">west</text>
+  <text x="170.0" y="169" text-anchor="middle" font-size="12" fill="#6b7280">angle grows</text>
+  <text x="170.0" y="185" text-anchor="middle" font-size="12" fill="#6b7280">clockwise</text>
+
+  <!-- ============ worked example ============ -->
+  <text x="348" y="62" font-size="13" font-weight="600" fill="#2b3138">Example: direction 90&#176;</text>
+
+  <text x="694" y="128" text-anchor="end" font-size="12" fill="#6b7280">the force comes</text>
+  <text x="694" y="144" text-anchor="end" font-size="12" fill="#6b7280">FROM here (east)</text>
+  <text x="352" y="128" font-size="12" fill="#d9782d">the device is pushed</text>
+  <text x="352" y="144" font-size="12" fill="#d9782d">THIS way (left)</text>
+
+  <circle cx="540" cy="185" r="21" fill="#dfe4ea" stroke="#9aa4b2" stroke-width="2"/>
+  <line x1="686" y1="185" x2="386" y2="185" stroke="#d9782d" stroke-width="4" marker-end="url(#ah)"/>
+  <circle cx="686" cy="185" r="4" fill="#8b95a3"/>
+
+  <text x="348" y="240" font-size="12" fill="#6b7280">The angle is where the force comes from &#8212;</text>
+  <text x="348" y="258" font-size="12" fill="#6b7280">not the way the device moves.</text>
+  <text x="348" y="282" font-size="12" fill="#6b7280">Wheel: turns counter-clockwise, steers left. &#160;Yoke: rolls left.</text>
+  <text x="348" y="304" font-size="12" fill="#6b7280">Stick: leans left. &#160;In axis terms: Fx negative.</text>
+</svg>
