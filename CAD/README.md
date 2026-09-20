@@ -6,3 +6,6 @@ Detailed guides for printing are found in the 3D Print pages of the Wiki.
 
 > [!Note] 
 > The AS5600 encoder bracket needs to be printed twice, one for each axis. There are two files for this STL, roll and pitch, as a reminder. They are identical though.
+
+## Old design version parts
+The old subdirectory contains the parts from the older design with a the old PCB boards and the 30T pulley
